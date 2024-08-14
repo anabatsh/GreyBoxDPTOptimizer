@@ -1,12 +1,4 @@
-from random import shuffle
-import re
-import os
-import json
-import numpy as np
-from tqdm.notebook import tqdm
 from openai import OpenAI
-from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
-from ..utils import * 
 
 API_KEY = "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"
 

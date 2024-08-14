@@ -1,10 +1,6 @@
 from random import shuffle
 import numpy as np
 import re
-import os
-from tqdm.notebook import tqdm
-from ..utils import Logger
-from .utils import *
 
 
 def parse_answer(answer):

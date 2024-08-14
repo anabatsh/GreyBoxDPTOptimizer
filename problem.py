@@ -16,11 +16,11 @@ class MyNet():
             nn.Linear(d//kernel_size, 1),
             # nn.BatchNorm()
         )
-        self.c = nn.Sequential(
-            nn.Conv1d(1, 1, kernel_size, stride=kernel_size, bias=False),
-            nn.Linear(d//kernel_size, 1),
-            nn.Sigmoid()
-        )
+        # self.c = nn.Sequential(
+        #     nn.Conv1d(1, 1, kernel_size, stride=kernel_size, bias=False),
+        #     nn.Linear(d//kernel_size, 1),
+        #     nn.Sigmoid()
+        # )
 
     def target(self, i):
         x = torch.tensor(i.copy()).to(torch.float32).reshape(-1, 1, self.d)
@@ -59,18 +59,18 @@ class MyNet():
         y = self.target(i)
         # y[self.constr(i)] = None
 
-        plt.figure(figsize=(8, 4), facecolor='black')
-        ax = plt.axes()
-        ax.set_facecolor('black')
-        ax.spines['bottom'].set_color('white')
-        ax.spines['top'].set_color('white') 
-        ax.spines['right'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
-        ax.tick_params(colors='white', which='both')
+        plt.figure(figsize=(8, 4))#, facecolor='black')
+        # ax = plt.axes()
+        # ax.set_facecolor('black')
+        # ax.spines['bottom'].set_color('white')
+        # ax.spines['top'].set_color('white') 
+        # ax.spines['right'].set_color('white')
+        # ax.spines['left'].set_color('white')
+        # ax.xaxis.label.set_color('white')
+        # ax.yaxis.label.set_color('white')
+        # ax.tick_params(colors='white', which='both')
 
-        plt.title('Target Function', color='white')
+        plt.title('Target Function')#, color='white')
         plt.plot(y, '-o', markersize=1)
         plt.xticks([0, len(y)-1], [fr'$[0]^{{{self.d}}}$', fr'$[{self.n-1}]^{{{self.d}}}$'])
         # plt.show()

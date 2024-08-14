@@ -1,3 +1,2 @@
-from .llm import *
+from .llm import LLAMBO
 from .protes import PROTES
-from .utils import show_results

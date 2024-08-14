@@ -1,10 +1,8 @@
-from abc import abstractmethod, ABC
 from random import shuffle
 import numpy as np
-from tqdm.notebook import tqdm 
 import re
 from scipy.stats import norm
-from ..utils import Logger
+from langchain_core.prompts import PromptTemplate, FewShotPromptTemplate
 from .utils import *
 
 

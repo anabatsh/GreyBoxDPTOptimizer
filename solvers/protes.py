@@ -2,11 +2,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import numpy as np
-from functools import partial
-import os
-import json
-from time import perf_counter as tpc
-from .utils import *
+from .base import *
 
 
 def _generate_initial(d, n, r, key):
