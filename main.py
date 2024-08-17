@@ -1,53 +1,51 @@
 #! /usr/bin/env python3
 
-from problem import MyNet
+import problems
 import solvers
-import torch
 
-from tqdm.auto import tqdm
-from argparse import ArgumentParser
 import os
 import json
-import time
+from tqdm.auto import tqdm
+from argparse import ArgumentParser
+
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--d', type=int, default=10, help='Problem\'s dimension')
-    parser.add_argument('--n', type=int, default=2, help='Problem\'s mode')
+
+    parser.add_argument('--problem', type=str, required=True, help='Problem')
+    parser.add_argument('--seed', type=int, default=1, help='Random seed')
+    parser.add_argument('--d', type=int, default=10, help='Dimension')
+    parser.add_argument('--n', type=int, default=2, help='Mode')
+
+    parser.add_argument('--solver', type=str, required=True, help='Solver')
     parser.add_argument('--budget', type=int, default=100, help='Budget')
     parser.add_argument('--k_init', type=int, default=10, help='Number of init points')
     parser.add_argument('--k_samples', type=int, default=5, help='Number of sampled points')
-
-    # parser.add_argument('--k_top', type=int, default=100, help='Size of the memory')
-    # parser.add_argument('--k_memory', type=int, default=100, help='Size of the memory')
-
-    parser.add_argument('--solver', type=str, help='Solver')
     parser.add_argument('--kwargs', type=json.loads, default='{}', help='Additional parameters')
 
-    parser.add_argument('--save_dir', type=str, default='', help='Directory to save results')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--n_exp', type=int, default=5, help='Number of experiments')
+    parser.add_argument('--save_dir', type=str, default='', help='Directory to save results')
     args = parser.parse_args()
 
+    # create folder {save dir}/{problem}/{problem seed}/{solver}
+    problem_dir = args.save_dir # os.path.join(args.save_dir, args.problem)
+    solver_dir = os.path.join(problem_dir, args.solver)
+    if not os.path.isdir(solver_dir):
+        os.makedirs(solver_dir, exist_ok=True)
 
-    save_dir = os.path.join(args.save_dir, args.solver)
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir, exist_ok=True)
+    # define problem
+    problem_class = getattr(problems, args.problem)
+    problem = problem_class(d=args.d, n=args.n, seed=args.seed)
 
-    torch.manual_seed(args.seed)
-    problem = MyNet(d=args.d, n=args.n)
-    problem.full_plot(save_dir)
+    # define solver
+    solver_class = getattr(solvers, args.solver)
+    solver = solver_class(problem=problem, budget=args.budget, k_init=args.k_init, k_samples=args.k_samples, **args.kwargs)
 
-    try:
-        solver_name = args.solver
-        solver_class = getattr(solvers, args.solver)
-    except:
-        print('Wrong solver')
-
-    solver = solver_class(problem, budget=args.budget, k_init=args.k_init, k_samples=args.k_samples, **args.kwargs)
-    for seed in tqdm(range(args.n_exp), desc=solver_name):
-        # time.sleep(0.25)
-        # for param, val in args.kwargs.items():
-        #     print(param, val)
-        solver.optimize(seed=seed, save_dir=save_dir)
+    # run solver n_exp times and save the results into folders 
+    # {save dir}/{problem}/{problem seed}/{solver}/{solver seed}
+    for seed in tqdm(range(args.n_exp)):
+        seed_dir = os.path.join(problem_dir, args.solver)
+        if not os.path.isdir(seed_dir):
+            os.mkdir(seed_dir, exist_ok=True)
+        solver.optimize(seed=seed, save_dir=seed_dir)

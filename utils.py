@@ -4,12 +4,59 @@ import json
 import matplotlib.pyplot as plt
 from matplotlib import colormaps as cm
 from prettytable import PrettyTable
+from argparse import ArgumentParser
+import problems
 
 
-def show_results(read_dir, solvers=[]):
+def int2bin(x, d, n):
+        i = []
+        for _ in range(d):
+            i.append(x % n)
+            x = x // n
+        i = np.array(i)[::-1].T
+        return i
+
+def get_xaxis(d, n):    
+    # t = 10
+    # if d > t:
+    #     d = self.d - t
+    #     x = np.arange(0, self.n ** (self.d - d))
+    #     i = self.int2bin(x)[:, d:]
+    #     i = np.hstack([i, np.zeros((i.shape[0], d), np.int32)])
+    # else:
+    x = np.arange(0, n ** d)
+    i = int2bin(x, d, n)
+    return i
+    
+def show_problem(problem, save_dir=''):
+    i = get_xaxis(problem.d, problem.n)
+    y = problem.target(i)
+    # y[self.constr(i)] = None
+
+    plt.figure(figsize=(8, 4))#, facecolor='black')
+    # ax = plt.axes()
+    # ax.set_facecolor('black')
+    # ax.spines['bottom'].set_color('white')
+    # ax.spines['top'].set_color('white') 
+    # ax.spines['right'].set_color('white')
+    # ax.spines['left'].set_color('white')
+    # ax.xaxis.label.set_color('white')
+    # ax.yaxis.label.set_color('white')
+    # ax.tick_params(colors='white', which='both')
+
+    plt.title('Target Function')#, color='white')
+    plt.plot(y, '-o', markersize=1)
+    plt.xticks([0, len(y)-1], [fr'$[0]^{{{problem.d}}}$', fr'$[{problem.n-1}]^{{{problem.d}}}$'])
+    # plt.show()
+
+    save_path = os.path.join(save_dir, 'problem.png')
+    plt.savefig(save_path)
+
+def show_solvers(read_dir, solvers=[]):
     key_list = ('time', 'x_best', 'y_best', 'm_list', 'y_list')
     solver_results = {}
-    for solver in solvers:#os.listdir(read_dir):
+    for solver in os.listdir(read_dir):
+    # for solver in solvers:
         solver_dir = os.path.join(read_dir, solver)
         if os.path.isdir(solver_dir):
             solver_results[solver] = {key: [] for key in key_list}
@@ -74,3 +121,24 @@ def show_results(read_dir, solvers=[]):
 
     print(tb, file=f)
     f.close()
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()
+
+    parser.add_argument('--problem', type=str, required=True, help='Problem')
+    parser.add_argument('--seed', type=int, default=1, help='Random seed')
+    parser.add_argument('--d', type=int, default=10, help='Dimension')
+    parser.add_argument('--n', type=int, default=2, help='Mode')
+
+    parser.add_argument('--read_dir', type=str, default='', help='Directory to read from')
+    # parser.add_argument('--solvers', nargs='+', help='')
+    # parser.add_argument('--save_dir', type=str, default='', help='Directory to read from')
+
+    args = parser.parse_args()
+
+    problem_class = getattr(problems, args.problem)
+    problem = problem_class(d=args.d, n=args.n, seed=args.seed)
+
+    show_problem(problem, args.read_dir)
+    show_solvers(args.read_dir)#, solvers=args.solvers)
