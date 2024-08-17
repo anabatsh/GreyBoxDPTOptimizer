@@ -23,11 +23,13 @@ class MyNet():
         # )
 
     def target(self, i):
+        i = np.array(i)
         x = torch.tensor(i.copy()).to(torch.float32).reshape(-1, 1, self.d)
         y = self.f(x)[:, 0, 0].detach().numpy()
         return y[0] if len(y) == 1 else y
     
     def constr(self, i):
+        i = np.array(i)
         x = torch.tensor(i.copy()).to(torch.float32).reshape(-1, 1, self.d)
         y = self.c(x)[:, 0, 0].detach().numpy() > 0.5
         return y[0] if len(y) == 1 else y

@@ -5,12 +5,6 @@ from time import perf_counter as tpc
 
 LARGE_CONST = 1e+5
 
-# def set2text(points):
-#     def compress(vars): return '(' + ', '.join(str(var) for var in vars) + ')'
-#     return '\n'.join([
-#         f'{compress(x)} -> {val: .4f}'
-#         for x, val in sorted(points.items(), key=lambda x: x[1])
-#     ])
 
 def set2text(points, targets):
     def compress(point): return '(' + ', '.join(str(x) for x in point) + ')'
@@ -23,7 +17,15 @@ def set2text(points, targets):
     ])
 
 class Logger:
-    def __init__(self):
+    def __init__(self, save_dir, seed, budget):        
+        self.save_dir = os.path.join(save_dir, str(seed))
+        if not os.path.isdir(self.save_dir):
+            os.mkdir(self.save_dir)
+
+        save_path_logs = os.path.join(self.save_dir, 'logs.txt')
+        self.f = open(save_path_logs, 'w')
+
+        self.budget = budget
         self.logs = {
             'time': tpc(), 
             'x_best': None, 
@@ -32,18 +34,35 @@ class Logger:
             'y_list': []
         }
 
-    def update(self, m, x, y):
-        if self.logs['y_best'] is None or y < self.logs['y_best']:
-            self.logs['x_best'] = np.array(x, dtype=np.int32).tolist()
-            self.logs['y_best'] = float(y)
-            self.logs['m_list'].append(int(m))
-            self.logs['y_list'].append(float(y))
+    def update(self, m, points, targets, title=''):
+        i_best = np.argmin(targets)
+        x_best = points[i_best]
+        y_best = targets[i_best]
 
-    def finish(self, budget):
-        if self.logs['m_list'][-1] < budget:
-            self.logs['m_list'].append(int(budget))
+        print(f'{title} ({m}/{self.budget})', file=self.f)
+        print(set2text(points, targets), file=self.f)
+
+        if self.logs['y_best'] is None or y_best < self.logs['y_best']:
+            self.logs['x_best'] = np.array(x_best, dtype=np.int32).tolist()
+            self.logs['y_best'] = float(y_best)
+            self.logs['m_list'].append(int(m))
+            self.logs['y_list'].append(float(y_best))
+        
+    def finish(self):
+        if self.logs['m_list'][-1] < self.budget:
+            self.logs['m_list'].append(int(self.budget))
             self.logs['y_list'].append(self.logs['y_best'])
         self.logs['time'] = tpc() - self.logs['time']
+
+        print(f'finish', file=self.f)
+        print(f'best result ({self.logs["m_list"][-1]}/{self.budget})', file=self.f)
+        print(set2text(self.logs['x_best'], self.logs['y_best']), file=self.f)
+
+        self.f.close()
+        
+        save_path_results = os.path.join(self.save_dir, 'results.json')
+        with open(save_path_results, 'w') as f:
+            json.dump(self.logs, f, indent=4)
 
 class Solver():
     def __init__(self, problem, budget, k_init=0, k_samples=1):
@@ -57,75 +76,41 @@ class Solver():
 
     def init_points(self):
         points = np.random.randint(0, self.problem.n, (self.k_init, self.problem.d))
-        targets = self.problem.target(points)
-        return points, targets
+        return points
 
     def sample_points(self):
         points = np.random.randint(0, self.problem.n, (self.k_samples, self.problem.d))
         return points
 
-    def filter_points(self, points):
-        return points
-
-    def update(self, points, targets=None):
-        if targets is None:
-            targets = self.problem.target(points)
-        return points, targets
-    
-    def optimize(self, seed=0, save_dir=''):
-        """
-        """
-        save_dir = os.path.join(save_dir, str(seed))
-        if not os.path.isdir(save_dir):
-            os.mkdir(save_dir)
-
-        save_path_logs = os.path.join(save_dir, 'logs.txt')
-        f = open(save_path_logs, 'w')
+    def update(self, points, targets):
+        pass
         
+    def optimize(self, save_dir='', seed=0):
         self.init_settings(seed)
-        self.logger = Logger()
+        self.logger = Logger(save_dir, seed, self.budget)
 
         if self.k_init:
-            points, targets = self.init_points()
-            self.update(self.k_init, points, targets)
-
-            i_best = np.argmin(targets)
-            self.logger.update(self.k_init, points[i_best], targets[i_best])
-
-            print(f'warmstarting ({self.k_init}/{self.budget})', file=f)
-            print(set2text(points, targets), file=f)
+            points = self.init_points()
+            targets = self.problem.target(points)
+            self.update(points, targets)
+            self.logger.update(self.k_init, points, targets, 'warmstarting')
 
         # try:
         i = self.k_init
         while i < self.budget:
             points = self.sample_points()
-            points = self.filter_points(points)
             if len(points):
                 i += len(points)
                 if i > self.budget:
                     points = points[:self.budget - i]
                     i = self.budget
 
-                points, targets = self.update(points)
-
-                i_best = np.argmin(targets)
-                self.logger.update(i, points[i_best], targets[i_best])
-
-                print(f'iteration ({i}/{self.budget})', file=f)
-                print(set2text(points, targets), file=f)
-
+                targets = self.problem.target(points)
+                self.update(points, targets)
+                self.logger.update(i, points, targets, 'iteration')
             else:
                 break
         # except:
         #     print('trainig has failed', file=f)
 
-        self.logger.finish(self.budget)
-        print(f'finish ({self.logger.logs["m_list"][-1]}/{self.budget})', file=f)
-
-        print(f'best result ({i}/{self.budget})', file=f)
-        print(set2text(self.logger.logs['x_best'], self.logger.logs['y_best']), file=f)
-        f.close()
-
-        save_path_results = os.path.join(save_dir, 'results.json')
-        with open(save_path_results, 'w') as f:
-            json.dump(self.logger.logs, f, indent=4)
+        self.logger.finish()

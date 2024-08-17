@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import numpy as np
-from .base import *
+from .base import Solver
 
 
 def _generate_initial(d, n, r, key):
@@ -118,60 +118,8 @@ class PROTES(Solver):
         I = self.jx_sample(Pl, Pm, Pr, Zm, jax.random.split(key, self.k_samples))
         return I
 
-    def update(self, points):
-        targets = jnp.array(self.problem.target(np.array(points)))
-        ind = jnp.argsort(targets)[:self.k_top]
-        points = points[ind]
-        targets = targets[ind]
-        # for _ in range(self.k_gd):
-        self.state, self.P = self.jx_optimize(self.state, self.P, points)        
-        points, targets = np.array(points), np.array(targets)
-        return points, targets
-
-class PROTESBO(Solver):
-    def __init__(self, problem, budget, k_init=0, k_samples=100):
-        super().__init__(problem, budget, k_init=0, k_samples=k_samples)
-
-    def init_settings(self, seed=0):
-        self.rng = jax.random.PRNGKey(seed)
-        self.rng, key = jax.random.split(self.rng)
-        self.P = _generate_initial(d=self.problem.d, n=self.problem.n, r=5, key=key)
-
-        optim = optax.adam(5.E-2)
-        self.state = optim.init(self.P)
-
-        interface_matrices = jax.jit(_interface_matrices)
-        sample = jax.jit(jax.vmap(_sample, (None, None, None, None, 0)))
-        likelihood = jax.jit(jax.vmap(_likelihood, (None, None, None, None, 0)))
-
-        @jax.jit
-        def loss(P_cur, I_cur):
-            Pl, Pm, Pr = P_cur
-            Zm = interface_matrices(Pm, Pr)
-            l = likelihood(Pl, Pm, Pr, Zm, I_cur)
-            return jnp.mean(-l)
-
-        loss_grad = jax.grad(loss)
-
-        @jax.jit
-        def optimize(state, P_cur, I_cur):
-            grads = loss_grad(P_cur, I_cur)
-            updates, state = optim.update(grads, state)
-            P_cur = jax.tree_util.tree_map(lambda p, u: p + u, P_cur, updates)
-            return state, P_cur
-        
-        self.jx_optimize = optimize
-        self.jx_interface_matrices = interface_matrices
-        self.jx_sample = sample
-
-    def sample_points(self):
-        Pl, Pm, Pr = self.P
-        Zm = self.jx_interface_matrices(Pm, Pr)
-        self.rng, key = jax.random.split(self.rng)
-        I = self.jx_sample(Pl, Pm, Pr, Zm, jax.random.split(key, self.k_samples))
-        return I
-
-    def update(self, points):
+    def update(self, points, targets):
+        targets = jnp.array(targets)
         targets = jnp.array(self.problem.target(np.array(points)))
         ind = jnp.argsort(targets)[:self.k_top]
         points = points[ind]
