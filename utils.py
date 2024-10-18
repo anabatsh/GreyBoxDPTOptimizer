@@ -52,11 +52,11 @@ def show_problem(problem, save_dir=''):
     save_path = os.path.join(save_dir, 'problem.png')
     plt.savefig(save_path)
 
-def show_solvers(read_dir, solvers=[]):
+def show_results(read_dir, solvers=[]):
     key_list = ('time', 'x_best', 'y_best', 'm_list', 'y_list')
     solver_results = {}
-    for solver in os.listdir(read_dir):
-    # for solver in solvers:
+    # for solver in os.listdir(read_dir):
+    for solver in solvers:
         solver_dir = os.path.join(read_dir, solver)
         if os.path.isdir(solver_dir):
             solver_results[solver] = {key: [] for key in key_list}
@@ -141,4 +141,4 @@ if __name__ == '__main__':
     problem = problem_class(d=args.d, n=args.n, seed=args.seed)
 
     show_problem(problem, args.read_dir)
-    show_solvers(args.read_dir)#, solvers=args.solvers)
+    show_results(args.read_dir)#, solvers=args.solvers)

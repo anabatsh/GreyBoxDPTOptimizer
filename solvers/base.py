@@ -104,7 +104,6 @@ class Solver():
                 if i > self.budget:
                     points = points[:self.budget - i]
                     i = self.budget
-
                 targets = self.problem.target(points)
                 self.update(points, targets)
                 self.logger.update(i, points, targets, 'iteration')

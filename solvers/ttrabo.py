@@ -74,7 +74,7 @@ def _sample(Yl, Ym, Yr, Zm, key):
     ir = jnp.array(ir, dtype=jnp.int32)
     return jnp.hstack((il, im, ir))
 
-class PROTES(Solver):
+class TTRABO(Solver):
     def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10):
         super().__init__(problem, budget, k_init=0, k_samples=k_samples)
         self.k_top = k_top
@@ -119,8 +119,8 @@ class PROTES(Solver):
         return I
 
     def update(self, points, targets):
-        # targets = jnp.array(targets)
-        targets = jnp.array(self.problem.target(points))
+        targets = jnp.array(targets)
+        targets = jnp.array(self.problem.target(np.array(points)))
         ind = jnp.argsort(targets)[:self.k_top]
         points = points[ind]
         targets = targets[ind]
@@ -128,3 +128,75 @@ class PROTES(Solver):
         self.state, self.P = self.jx_optimize(self.state, self.P, points)        
         points, targets = np.array(points), np.array(targets)
         return points, targets
+    
+
+
+import jax
+import jax.numpy as jnp
+import optax
+import numpy as np
+
+from teneva_jax import full, add, svd
+
+d, n, r = 10, 2, 5
+
+mean = [
+    jnp.zeros((1, n, r)),
+    jnp.zeros((d-2, r, n, r)),
+    jnp.zeros((r, n, 1)),
+]
+std = [
+    jnp.ones((1, n, r)),
+    jnp.ones((d-2, r, n, r)),
+    jnp.ones((r, n, 1)),
+]
+
+# P1 = _generate_initial(10, 2, 5)
+# Gl, Gm, Gr = P1
+# print(Gl.shape, f'{Gm[0].shape} x {len(Gm)}', Gr.shape)
+
+# P2 = _generate_initial(10, 2, 2)
+# Gl, Gm, Gr = P2
+# print(Gl.shape, f'{Gm[0].shape} x {len(Gm)}', Gr.shape)
+
+# print('difference', ((full(P1) + full(P2)) - full(P)).sum())
+
+
+
+from teneva_jax import get_many
+
+# sampling
+acq = add(mean, std) # truncated - round ?
+rng = jax.random.PRNGKey(0)
+rng, key = jax.random.split(rng)
+I = jax.random.randint(key=key, shape=(5, d), minval=0, maxval=n)
+A = get_many(acq, I)
+I[A.argmin()]
+
+from teneva import truncate, matrix_svd
+from teneva_jax import convert, matrix_skeleton
+
+def matrix_skeleton(A, r):
+    U, s, V = jnp.linalg.svd(A, full_matrices=False, hermitian=False)
+    S = jnp.diag(jnp.sqrt(s[:r]))
+    return U[:, :r] @ S, S @ V[:r, :]
+
+
+def truncate(Y, r=1.E+12):
+    d = len(Y)
+    Z = [G.copy() for G in Y]
+
+    for k in range(d-1, 0, -1):
+        r1, n, r2 = Z[k].shape
+        G = np.reshape(Z[k], (r1, n * r2), order='F')
+        U, V = matrix_skeleton(G, r)
+        print(r1, n * r2, U.shape, V.shape)
+        Z[k] = np.reshape(V, (-1, n, r2), order='F')
+        Z[k-1] = np.einsum('ijq,ql', Z[k-1], U, optimize=True)
+    return Z
+
+# P_ = truncate(convert(P), r=5)
+# for G in P_:
+#     print(G.shape)
+
+I = jnp.random

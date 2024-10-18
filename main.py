@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     # run solver n_exp times and save the results into folders 
     # {save dir}/{problem}/{problem seed}/{solver}/{solver seed}
-    for seed in tqdm(range(args.n_exp)):
+    for seed in range(args.n_exp): #tqdm
         seed_dir = os.path.join(problem_dir, args.solver)
         if not os.path.isdir(seed_dir):
             os.mkdir(seed_dir, exist_ok=True)
