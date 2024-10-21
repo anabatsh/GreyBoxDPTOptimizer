@@ -86,7 +86,6 @@ class Solver():
         pass
         
     def optimize(self):
-        # self.init_settings(seed)
         self.logger = Logger(self.save_dir, self.budget)
 
         if self.k_init:

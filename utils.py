@@ -5,123 +5,145 @@ import matplotlib.pyplot as plt
 from matplotlib import colormaps as cm
 from prettytable import PrettyTable
 from argparse import ArgumentParser
+
 import problems
 
 
 def int2bin(x, d, n):
-        i = []
-        for _ in range(d):
-            i.append(x % n)
-            x = x // n
-        i = np.array(i)[::-1].T
-        return i
-
-def get_xaxis(d, n):    
-    # t = 10
-    # if d > t:
-    #     d = self.d - t
-    #     x = np.arange(0, self.n ** (self.d - d))
-    #     i = self.int2bin(x)[:, d:]
-    #     i = np.hstack([i, np.zeros((i.shape[0], d), np.int32)])
-    # else:
-    x = np.arange(0, n ** d)
-    i = int2bin(x, d, n)
+    """
+    For a given decimal scalar value obtain a 
+    corresponding vector of length d in base-n system
+    input: x - batch size decimal scalars in [0, n^d)
+           d, n - integer
+    input: i - batch size vectors [{1, n}]^d
+    """
+    i = []
+    for _ in range(d):
+        i.append(x % n)
+        x = x // n
+    i = np.array(i)[::-1].T
     return i
-    
+
+def get_xaxis(d, n, n_max=1024):
+    """
+    For given d and n list all the vectors [{1, n}]^d
+    *if there's too many, list only n_max of them with equal step
+    input: d, n - integer
+    input: i - either all or a part of the vectors [{1, n}]^d
+    """
+    d_new = min(d, int(np.emath.logn(n, n_max)))
+    x = np.arange(0, n ** d_new)
+    i = int2bin(x, d_new, n)
+    if d_new < d:
+        i = np.pad(i, ((0, 0), (0, d - d_new)), constant_values=0)
+        i = np.pad(i, ((0, 1), (0, 0)), constant_values=n-1)
+    return i
+
 def show_problem(problem, save_dir=''):
+    """
+    Vizualize a given problem as a 2D plot and save it. 
+    For all (or some reasonable amount) of the points from the problem argument space
+    compute the corresponding target values and depict them on a 2D plot, where
+    - axis x corresponds to the decimal representation of the argument vectors,
+    - axis y corresponds to the target values,
+    and the points that don't satisfy the constraints are punctured
+    input: problem
+           save_dir - directory to save the result
+    """
     i = get_xaxis(problem.d, problem.n)
     y = problem.target(i)
-    # y[self.constr(i)] = None
 
-    plt.figure(figsize=(8, 4))#, facecolor='black')
-    # ax = plt.axes()
-    # ax.set_facecolor('black')
-    # ax.spines['bottom'].set_color('white')
-    # ax.spines['top'].set_color('white') 
-    # ax.spines['right'].set_color('white')
-    # ax.spines['left'].set_color('white')
-    # ax.xaxis.label.set_color('white')
-    # ax.yaxis.label.set_color('white')
-    # ax.tick_params(colors='white', which='both')
-
-    plt.title('Target Function')#, color='white')
+    plt.figure(figsize=(8, 4))
+    plt.title('Target Function')
     plt.plot(y, '-o', markersize=1)
     plt.xticks([0, len(y)-1], [fr'$[0]^{{{problem.d}}}$', fr'$[{problem.n-1}]^{{{problem.d}}}$'])
-    # plt.show()
-
     save_path = os.path.join(save_dir, 'problem.png')
     plt.savefig(save_path)
+    # plt.show()
 
 def show_results(read_dir, solvers=[]):
+    """
+    For given solvers and their reruns
+    - summirize the obtained results in a table with the following columns: 
+        - the best found target value 
+        - the averaged found target value
+        - the variance of the found target value
+        - the averaged time needed to perform optimization
+    - vizualize the optimization processes as best found target value per iteration
+    input: read_dir - directory to read the results
+           solvers - list of solvers we want to examine
+                     if empty, all available solvers will be included
+    """
+    # accumulate all the optimization processes and results in one dictionary
     solvers = solvers if len(solvers) else os.listdir(read_dir)
-    key_list = ('time', 'x_best', 'y_best', 'm_list', 'y_list')
+    key_list = ('time', 'y_best', 'm_list', 'y_list')
     solver_results = {}
     for solver in solvers:
         solver_dir = os.path.join(read_dir, solver)
         if os.path.isdir(solver_dir):
-            solver_results[solver] = {key: [] for key in key_list}
+            solver_result = {key: [] for key in key_list}
             for seed in os.listdir(solver_dir):
                 seed_dir = os.path.join(solver_dir, seed)
-                if os.path.isdir(seed_dir):
-                    with open(os.path.join(seed_dir, 'results.json')) as f:
-                        r = json.load(f)
-                        for key in key_list:
-                            solver_results[solver][key].append(r[key])
+                with open(os.path.join(seed_dir, 'results.json')) as f:
+                    r = json.load(f)
+                    for key in key_list:
+                        solver_result[key].append(r[key])
+            # compute average time and target value as well as 
+            # the best obtained target value and its variance
+            solver_results[solver] = {
+                'time': np.mean(solver_result['time']),
+                'y_best': np.min(solver_result['y_best']),
+                'y_mean': np.mean(solver_result['y_best']),
+                'y_std': np.std(solver_result['y_best'])
+            }
+            # compute an average optimization process 
+            m_list_full = sum(solver_result['m_list'], [])
+            m_min, m_max = np.min(m_list_full), np.max(m_list_full)
+            m_intr = np.linspace(m_min, m_max, 10).astype(np.int32)
+            y_intr = [
+                np.interp(m_intr, m_list, y_list) 
+                for (m_list, y_list) in zip(solver_result['m_list'], solver_result['y_list'])
+            ]
+            solver_results[solver] |= {
+                'm_list': m_intr,
+                'y_list_mean': np.mean(y_intr, axis=0),
+                'y_list_std': np.std(y_intr, axis=0),
+            }
 
-    save_path_img = os.path.join(read_dir, 'results.png')
-    save_path_txt = os.path.join(read_dir, 'results.txt')
-    f = open(save_path_txt, 'w')
-    # if os.path.exists(save_path_txt):
-    #     os.remove(save_path_txt)
+    # print the results
+    with open(os.path.join(read_dir, 'results.txt'), 'w') as f:
+        tb = PrettyTable()
+        tb.field_names = ['Solver', 'y best', 'y mean', 'y std', 'time mean']
+        tb.add_rows([[
+            solver, 
+            f'{result["y_best"]: .5f}', 
+            f'{result["y_mean"]: .5f}', 
+            f'{result["y_std"]: .5f}', 
+            f'{result["time"]:.3f}'
+        ] for solver, result in solver_results.items()])
+        print(tb, file=f)
 
-    plt.figure(figsize=(8, 4))#, facecolor='black')
-    # ax = plt.axes()
-    # ax.set_facecolor('black')
-    # ax.spines['bottom'].set_color('white')
-    # ax.spines['top'].set_color('white') 
-    # ax.spines['right'].set_color('white')
-    # ax.spines['left'].set_color('white')
-    # ax.xaxis.label.set_color('white')
-    # ax.yaxis.label.set_color('white')
-    # ax.tick_params(colors='white', which='both')
-
-    plt.title('Optimization Process')#, color='white')
+    # display the vizualization
+    plt.figure(figsize=(8, 4))
+    plt.title('Optimization Process')
     plt.ylabel('Target Value')
     plt.xlabel('Iteration')
 
     cmap = cm.get_cmap('jet')
-    c_list = np.linspace(0.1, 0.9, len(solver_results))[::-1]
-
-    tb = PrettyTable()
-    tb.field_names = ["Solver", "y best", "y mean", "y std", "time mean"]
-
-    for (solver, results), c in zip(solver_results.items(), c_list):
-        color = cmap(c)
-        y_best = np.min(results['y_best'])
-        y_mean = np.max(results['y_best'])
-        y_std = np.std(results['y_best'])
-        time_mean = np.mean(results['time'])
-        # f.write(f'{solver:<10}: best = {y_best: .5f} mean = {y_mean: .5f} std = {y_std: .5f} time = {time_mean:.3f}\n')
-        
-        tb.add_row([solver, f'{y_best: .5f}', f'{y_mean: .5f}', f'{y_std: .5f}', f'{time_mean:.3f}'])
-
-        m_list_full = sum(results['m_list'], [])
-        m_intr = np.linspace(np.min(m_list_full), np.max(m_list_full), 10).astype(np.int32)
-        y_intr = [np.interp(m_intr, m_list, y_list) for (m_list, y_list) in zip(results['m_list'], results['y_list'])]
-
-        # for (m_list, y_list) in zip(results['m_list'], results['y_list']):
-        #     plt.plot(m_list, y_list, '--', c=color)
-        plt.plot(m_intr, np.mean(y_intr, 0), label=solver, c=color)
-        plt.fill_between(m_intr, np.min(y_intr, 0), np.max(y_intr, 0), alpha=0.2, color=color)
-
-    # lgd = plt.legend(facecolor='black', labelcolor='white', loc='center left', bbox_to_anchor=(1, 0.5))
+    color_list = [cmap(c) for c in np.linspace(0.1, 0.9, len(solvers))[::-1]]
+    for (solver, result), color in zip(solver_results.items(), color_list):
+        # averaged optimization process
+        plt.plot(result['m_list'], result['y_list_mean'], label=solver, c=color)
+        # variance of the process
+        plt.fill_between(
+            result['m_list'], 
+            result['y_list_mean']-result['y_list_std'],
+            result['y_list_mean']+result['y_list_std'],
+            alpha=0.2, color=color
+        )
     lgd = plt.legend(facecolor='white', labelcolor='black', loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(save_path_img, bbox_extra_artists=(lgd,), bbox_inches='tight')
+    plt.savefig(os.path.join(read_dir, 'results.png'), bbox_extra_artists=(lgd,), bbox_inches='tight')
     # plt.show()
-
-    print(tb, file=f)
-    f.close()
-
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -134,11 +156,16 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # define a problem
     problem_class = getattr(problems, args.problem)
     problem = problem_class(d=args.d, n=args.n, **args.problem_kwargs)
 
+    # save the results to {save dir}/{problem}
     save_dir = os.path.join(args.save_dir, args.problem)
     os.makedirs(save_dir, exist_ok=True)
     
+    # vizualize the problem on 2D plot
     show_problem(problem, save_dir)
+
+    # vizualize the results 
     show_results(save_dir)#, solvers=args.solvers)
