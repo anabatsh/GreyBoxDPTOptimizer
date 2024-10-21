@@ -75,8 +75,8 @@ def _sample(Yl, Ym, Yr, Zm, key):
     return jnp.hstack((il, im, ir))
 
 class PROTES(Solver):
-    def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10):
-        super().__init__(problem, budget, k_init=0, k_samples=k_samples)
+    def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10, seed=0, save_dir=''):
+        super().__init__(problem, budget, 0, k_samples, seed, save_dir)
         self.k_top = k_top
 
     def init_settings(self, seed=0):

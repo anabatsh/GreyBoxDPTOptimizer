@@ -53,9 +53,9 @@ def show_problem(problem, save_dir=''):
     plt.savefig(save_path)
 
 def show_results(read_dir, solvers=[]):
+    solvers = solvers if len(solvers) else os.listdir(read_dir)
     key_list = ('time', 'x_best', 'y_best', 'm_list', 'y_list')
     solver_results = {}
-    # for solver in os.listdir(read_dir):
     for solver in solvers:
         solver_dir = os.path.join(read_dir, solver)
         if os.path.isdir(solver_dir):
@@ -101,7 +101,7 @@ def show_results(read_dir, solvers=[]):
         y_mean = np.max(results['y_best'])
         y_std = np.std(results['y_best'])
         time_mean = np.mean(results['time'])
-        f.write(f'{solver:<10}: best = {y_best: .5f} mean = {y_mean: .5f} std = {y_std: .5f} time = {time_mean:.3f}\n')
+        # f.write(f'{solver:<10}: best = {y_best: .5f} mean = {y_mean: .5f} std = {y_std: .5f} time = {time_mean:.3f}\n')
         
         tb.add_row([solver, f'{y_best: .5f}', f'{y_mean: .5f}', f'{y_std: .5f}', f'{time_mean:.3f}'])
 
@@ -127,18 +127,18 @@ if __name__ == '__main__':
     parser = ArgumentParser()
 
     parser.add_argument('--problem', type=str, required=True, help='Problem')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--d', type=int, default=10, help='Dimension')
     parser.add_argument('--n', type=int, default=2, help='Mode')
-
-    parser.add_argument('--read_dir', type=str, default='', help='Directory to read from')
-    # parser.add_argument('--solvers', nargs='+', help='')
-    # parser.add_argument('--save_dir', type=str, default='', help='Directory to read from')
+    parser.add_argument('--problem_kwargs', type=json.loads, default='{}', help='Additional problem parameters')
+    parser.add_argument('--save_dir', type=str, default='', help='Directory to read from and save to')
 
     args = parser.parse_args()
 
     problem_class = getattr(problems, args.problem)
-    problem = problem_class(d=args.d, n=args.n, seed=args.seed)
+    problem = problem_class(d=args.d, n=args.n, **args.problem_kwargs)
 
-    show_problem(problem, args.read_dir)
-    show_results(args.read_dir)#, solvers=args.solvers)
+    save_dir = os.path.join(args.save_dir, args.problem)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    show_problem(problem, save_dir)
+    show_results(save_dir)#, solvers=args.solvers)

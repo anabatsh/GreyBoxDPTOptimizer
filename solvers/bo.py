@@ -31,8 +31,8 @@ import matplotlib.pyplot as plt
     
 
 class BO(Solver):
-    def __init__(self, problem, budget, k_init=10, k_samples=1):
-        super().__init__(problem, budget, k_init=k_init, k_samples=k_samples)
+    def __init__(self, problem, budget, k_init=10, k_samples=1, seed=0, save_dir=''):
+        super().__init__(problem, budget, k_init, k_samples, seed, save_dir)
 
         self.gp = GaussianProcessRegressor(
             kernel=Matern(length_scale_bounds=(1e-6, 1e3), nu=2.5),

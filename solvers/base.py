@@ -17,11 +17,8 @@ def set2text(points, targets):
     ])
 
 class Logger:
-    def __init__(self, save_dir, seed, budget):        
-        self.save_dir = os.path.join(save_dir, str(seed))
-        if not os.path.isdir(self.save_dir):
-            os.mkdir(self.save_dir)
-
+    def __init__(self, save_dir, budget):        
+        self.save_dir = save_dir
         save_path_logs = os.path.join(self.save_dir, 'logs.txt')
         self.f = open(save_path_logs, 'w')
 
@@ -65,11 +62,14 @@ class Logger:
             json.dump(self.logs, f, indent=4)
 
 class Solver():
-    def __init__(self, problem, budget, k_init=0, k_samples=1):
+    def __init__(self, problem, budget, k_init=0, k_samples=1, seed=0, save_dir=''):
         self.problem = problem
         self.budget = budget
         self.k_init = k_init
         self.k_samples = k_samples
+
+        self.init_settings(seed)
+        self.save_dir = save_dir
 
     def init_settings(self, seed=0):
         np.random.seed(seed)
@@ -85,9 +85,9 @@ class Solver():
     def update(self, points, targets):
         pass
         
-    def optimize(self, save_dir='', seed=0):
-        self.init_settings(seed)
-        self.logger = Logger(save_dir, seed, self.budget)
+    def optimize(self):
+        # self.init_settings(seed)
+        self.logger = Logger(self.save_dir, self.budget)
 
         if self.k_init:
             points = self.init_points()

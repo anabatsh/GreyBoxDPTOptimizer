@@ -192,8 +192,8 @@ def select(model, observed_points, candidate_points, n_samples=5, n_max_trials=1
     return [best_point]
 
 class LLAMBO(Solver):
-    def __init__(self, problem, budget, k_init=10, k_samples=5, k_memory=100):
-        super().__init__(problem, budget, k_init, k_samples)
+    def __init__(self, problem, budget, k_init=10, k_samples=5, k_memory=100, seed=0, save_dir=''):
+        super().__init__(problem, budget, k_init, k_samples, seed, save_dir)
         self.model = ChatGPT()
         self.memory = Memory(size=k_memory)
 
