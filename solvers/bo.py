@@ -2,8 +2,8 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
-from .base import Solver
 import matplotlib.pyplot as plt
+from .base import Solver
 
 
 # class BO(Solver):

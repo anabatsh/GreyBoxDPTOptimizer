@@ -4,7 +4,6 @@ import os
 import json
 from tqdm.auto import tqdm
 from argparse import ArgumentParser
-
 import problems
 import solvers
 

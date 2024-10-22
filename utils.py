@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from matplotlib import colormaps as cm
 from prettytable import PrettyTable
 from argparse import ArgumentParser
-
 import problems
 
 
@@ -52,6 +51,7 @@ def show_problem(problem, save_dir=''):
     """
     i = get_xaxis(problem.d, problem.n)
     y = problem.target(i)
+    # constraints!
 
     plt.figure(figsize=(8, 4))
     plt.title('Target Function')
