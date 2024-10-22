@@ -1,6 +1,7 @@
 ### Grey Box
 
 A repo for solving **Integer Nonlinear Optimization** problems:
+
 $$
 \begin{align}
 & \text{minimize} \ f(x) \ \text{for} \ x = [\{1, ..., n\}]^d \\
