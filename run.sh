@@ -14,14 +14,14 @@ RUNNER_ARGS=(
 )
 
 # nevergrad benchmarks
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver OnePlusOne
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PSO
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver NoisyBandit
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver SPSA
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver Portfolio
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver OnePlusOne
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PSO
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver NoisyBandit
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver SPSA
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver Portfolio
 
 # PROTES benchmark
-# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PROTES --k_samples 5 --solver_kwargs '{"k_top":2}'
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PROTES --k_samples 5 --solver_kwargs '{"k_top":2}'
 
 # vizualize the results
 ! python ./utils.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[2]}

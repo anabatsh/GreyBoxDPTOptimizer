@@ -43,7 +43,7 @@ We suggest solving the aforementioned problems with different solvers, leveragin
 3. **Updating**: the current set $D_n$ is updated with the selected pairs: $D_{n+1} = \{D_n, (x_{n+1}, y_{n+1})... (x_{n+k}, y_{n+k})\}$
 4. Repeat until convergency
 
-<img src="/Users/anabatsh/Library/Application Support/typora-user-images/Screenshot 2024-10-08 at 18.54.01.png" alt="Screenshot 2024-10-08 at 18.54.01" style="zoom:20%;" />
+<!-- <img src="/Users/anabatsh/Library/Application Support/typora-user-images/Screenshot 2024-10-08 at 18.54.01.png" alt="Screenshot 2024-10-08 at 18.54.01" style="zoom:20%;" /> -->
 
 These solvers are presented in the `solvers` module as classes, inheriting a base class `Solver` located in `solvers.base`.
 
@@ -76,7 +76,7 @@ solver.optimize()
 
 this method doesn't return anything directly but logs all the information in `Logger`, which is another helpful class from `solvers.base`, which helps to log every step of the optimization process, namely:
 
-- `time` - time consumption of the optimization
+- `t_best` - time consumption of the optimization
 - `y_best` - the best-found target value
 - `x_best` - the argument value corresponding to y_best 
 - `m_list` - a list of iterations on which the solver had updated the best-found solution because it found a better one 

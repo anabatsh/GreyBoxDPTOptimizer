@@ -29,12 +29,12 @@ class Logger:
         """
         self.t_start = tpc()
         self.logs = {
-            't_best': None,
-            'x_best': None, 
-            'y_best': None, 
-            'c_best': None,
-            'm_list': [],
-            'y_list': []
+            'y_best': None, # the best-found target (float)
+            'x_best': None, # argument corresponding to y_best (integer vector of size [d])
+            'c_best': None, # constraints value for x_best (bool)
+            't_best': None, # time to find the best solution (float)
+            'm_list': [],   # a list of iterations on which the previous values were updated
+            'y_list': []    # a history of best-found targets per iteration from m_list
         } | {
             'budget': solver.budget
         }
@@ -63,10 +63,10 @@ class Logger:
 
         # if the new point is better than the known best point, update the knowledge
         if self.logs['y_best'] is None or (y_best < self.logs['y_best'] and c_best):
-            self.logs['t_best'] = tpc() - self.t_start
-            self.logs['x_best'] = np.array(x_best, dtype=np.int32).tolist()
             self.logs['y_best'] = float(y_best)
+            self.logs['x_best'] = np.array(x_best, dtype=np.int32).tolist()
             self.logs['c_best'] = bool(c_best)
+            self.logs['t_best'] = tpc() - self.t_start
             self.logs['m_list'].append(int(m))
             self.logs['y_list'].append(float(y_best))
 
