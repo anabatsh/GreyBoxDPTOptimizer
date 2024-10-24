@@ -95,7 +95,6 @@ show_results(save_dir)
 ```
 
 This creates two files: `save_dir/results.png` and `save_dir/results.txt`. The former contains a picture, depicting entire optimization processes for comparison and the latter directly compares the final results in a form of a table.
----
 
 A terminal command to run an experiment manually:
 
