@@ -51,7 +51,8 @@ def show_problem(problem, save_dir=''):
     """
     i = get_xaxis(problem.d, problem.n)
     y = problem.target(i)
-    # constraints!
+    c = problem.constraints(i)
+    y[~c] = None
 
     plt.figure(figsize=(8, 4))
     plt.title('Target Function')
@@ -76,7 +77,7 @@ def show_results(read_dir, solvers=[]):
     """
     # accumulate all the optimization processes and results in one dictionary
     solvers = solvers if len(solvers) else os.listdir(read_dir)
-    key_list = ('time', 'y_best', 'm_list', 'y_list')
+    key_list = ('t_best', 'y_best', 'm_list', 'y_list')
     solver_results = {}
     for solver in solvers:
         solver_dir = os.path.join(read_dir, solver)
@@ -91,14 +92,16 @@ def show_results(read_dir, solvers=[]):
             # compute average time and target value as well as 
             # the best obtained target value and its variance
             solver_results[solver] = {
-                'time': np.mean(solver_result['time']),
+                'time': np.mean(solver_result['t_best']),
                 'y_best': np.min(solver_result['y_best']),
                 'y_mean': np.mean(solver_result['y_best']),
                 'y_std': np.std(solver_result['y_best'])
             }
             # compute an average optimization process 
             m_list_full = sum(solver_result['m_list'], [])
-            m_min, m_max = np.min(m_list_full), np.max(m_list_full)
+            with open(os.path.join(seed_dir, 'results.json')) as f:
+                budget = json.load(f)['budget']
+            m_min, m_max = np.min(m_list_full), budget #np.max(m_list_full)
             m_intr = np.linspace(m_min, m_max, 10).astype(np.int32)
             y_intr = [
                 np.interp(m_intr, m_list, y_list) 
@@ -136,7 +139,7 @@ def show_results(read_dir, solvers=[]):
         plt.plot(result['m_list'], result['y_list_mean'], label=solver, c=color)
         # variance of the process
         plt.fill_between(
-            result['m_list'], 
+            result['m_list'],
             result['y_list_mean']-result['y_list_std'],
             result['y_list_mean']+result['y_list_std'],
             alpha=0.2, color=color
@@ -163,7 +166,7 @@ if __name__ == '__main__':
     # save the results to {save dir}/{problem}
     save_dir = os.path.join(args.save_dir, args.problem)
     os.makedirs(save_dir, exist_ok=True)
-    
+
     # vizualize the problem on 2D plot
     show_problem(problem, save_dir)
 

@@ -4,8 +4,8 @@ from functools import partial
 from .base import Solver
 
 class NgSolver(Solver):
-    def __init__(self, problem, budget, k_init=0, k_samples=1, solver='', seed=0, save_dir=''):
-        super().__init__(problem, budget, 0, 1, seed, save_dir)
+    def __init__(self, problem, budget, k_init=0, k_samples=1, solver='', seed=0):
+        super().__init__(problem, budget, 0, 1, seed)
 
         self.optimizer = solver(
             parametrization=nevergrad.p.TransitionChoice(problem.n, repetitions=problem.d),
@@ -18,7 +18,7 @@ class NgSolver(Solver):
         points = np.array([self.points.value], dtype=int)
         return points
     
-    def update(self, points, targets):
+    def update(self, points, targets, constraints):
         self.optimizer.tell(self.points, targets[0])
 
 OnePlusOne = partial(NgSolver, solver=nevergrad.optimizers.OnePlusOne)

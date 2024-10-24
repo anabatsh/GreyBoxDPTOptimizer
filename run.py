@@ -41,7 +41,7 @@ if __name__ == '__main__':
         solver = solver_class(
             problem=problem, budget=args.budget, 
             k_init=args.k_init, k_samples=args.k_samples,
-            seed=seed, save_dir=save_dir,
+            seed=seed,
             **args.solver_kwargs
         )
-        solver.optimize()
+        solver.optimize(save_dir=save_dir)

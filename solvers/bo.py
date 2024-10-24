@@ -31,8 +31,8 @@ from .base import Solver
     
 
 class BO(Solver):
-    def __init__(self, problem, budget, k_init=10, k_samples=1, seed=0, save_dir=''):
-        super().__init__(problem, budget, k_init, k_samples, seed, save_dir)
+    def __init__(self, problem, budget, k_init=10, k_samples=1, seed=0):
+        super().__init__(problem, budget, k_init, k_samples, seed)
 
         self.gp = GaussianProcessRegressor(
             kernel=Matern(length_scale_bounds=(1e-6, 1e3), nu=2.5),
@@ -58,7 +58,7 @@ class BO(Solver):
         suggestion = x[np.argmin(y)]
         return np.array([suggestion])
 
-    def update(self, points, targets):
+    def update(self, points, targets, constraints):
         self.points.extend(points)
         self.targets.extend(targets)
         self.gp.fit(self.points, self.targets)

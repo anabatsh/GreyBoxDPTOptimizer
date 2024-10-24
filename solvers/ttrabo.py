@@ -75,8 +75,8 @@
 #     return jnp.hstack((il, im, ir))
 
 # class TTRABO(Solver):
-#     def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10, seed=0, save_dir=''):
-#         super().__init__(problem, budget, 0, k_samples, seed, save_dir)
+#     def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10, seed=0):
+#         super().__init__(problem, budget, 0, k_samples, seed)
 #         self.k_top = k_top
 
 #     def init_settings(self, seed=0):
@@ -118,7 +118,7 @@
 #         I = self.jx_sample(Pl, Pm, Pr, Zm, jax.random.split(key, self.k_samples))
 #         return I
 
-#     def update(self, points, targets):
+#     def update(self, points, targets, constraints):
 #         targets = jnp.array(targets)
 #         targets = jnp.array(self.problem.target(np.array(points)))
 #         ind = jnp.argsort(targets)[:self.k_top]

@@ -5,7 +5,7 @@ from .base import Problem
 
 
 class Net(Problem):
-    def __init__(self, d=10, n=2, seed=1):
+    def __init__(self, d=10, n=2, seed=0, q=0.5):
         super().__init__(d, n)
         torch.manual_seed(seed)
 
@@ -19,6 +19,7 @@ class Net(Problem):
             nn.Linear(d//kernel_size, 1),
             nn.Sigmoid()
         )
+        self.q = q
 
     def target(self, i):
         x = torch.tensor(np.array(i)).to(torch.float32).reshape(-1, 1, self.d)
@@ -27,5 +28,5 @@ class Net(Problem):
     
     def constraints(self, i):
         x = torch.tensor(np.array(i)).to(torch.float32).reshape(-1, 1, self.d)
-        y = self.f(x).flatten().detach().numpy() > 0.5
+        y = self.c(x).flatten().detach().numpy() < self.q
         return y
