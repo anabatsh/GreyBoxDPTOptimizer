@@ -31,6 +31,9 @@ from .base import Solver
     
 
 class BO(Solver):
+    """
+    Bayesian Optimization Solver.
+    """
     def __init__(self, problem, budget, k_init=10, k_samples=1, seed=0):
         super().__init__(problem, budget, k_init, k_samples, seed)
 

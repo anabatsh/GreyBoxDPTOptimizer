@@ -4,7 +4,14 @@ from functools import partial
 from .base import Solver
 
 class NgSolver(Solver):
+    """
+    Wrapping Solver for methods from the nevergrad library.
+    """
     def __init__(self, problem, budget, k_init=0, k_samples=1, solver='', seed=0):
+        """
+        Additional Input:
+            solver - name of the particular method
+        """
         super().__init__(problem, budget, 0, 1, seed)
 
         self.optimizer = solver(

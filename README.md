@@ -29,11 +29,13 @@ and two mandatory methods:
 problem = Net(d=10, n=2)
 ```
 
-To visualize a problem, one could simply call the `show_problem` function from the `utils` module:
+To visualize a problem, one could simply call the `show_problem` method from the `utils` module with an additional argument `save_dir` to specify the path to save the result:
 
 ```python
-show_problem(problem)
+show_problem(problem, save_dir)
 ```
+
+That creates a file `save_dir/results.png` containing the corresponding picture.
 
 We suggest solving the aforementioned problems with different solvers, leveraging a common **sample-update** strategy:
 
@@ -68,10 +70,10 @@ Example:
 solver = BO(problem, budget=20, k_init=10, k_samples=1)
 ```
 
-To perform the optimization, you need to call the `optimize()` method:
+To perform the optimization, you need to call the `optimize` method with an argument `save_dir` to specify the path to save the results:
 
-```
-solver.optimize()
+```python
+solver.optimize(save_dir)
 ```
 
 this method doesn't return anything directly but logs all the information in `Logger`, which is another helpful class from `solvers.base`, which helps to log every step of the optimization process, namely:
@@ -82,16 +84,17 @@ this method doesn't return anything directly but logs all the information in `Lo
 - `m_list` - a list of iterations on which the solver had updated the best-found solution because it found a better one 
 - `y_list` - a history of best-found target values per iteration from m_list
 
-So, after performing an optimization method, one can either manually print out the `solver.logger.logs` to get all the information described above or simply check out the file `{solver.save_dir}/results.json` that the logger creates automatically during the optimization process.
+So, after performing an optimization method, one can either manually print out the `solver.logger.logs` to get all the information described above or simply check out the file `save_dir/results.json` that the logger creates automatically during the optimization process.
 
-Additionally, the logger creates a file `{solver.save_dir}/logs.txt` that contains a whole story of the optimization process in the form of a sampled point and its target value per each optimization step.
+Additionally, the logger creates a file `save_dir/logs.txt` that contains a whole story of the optimization process in the form of a sampled point and its target value per each optimization step.
 
-To visualize all the results, one could simply call the `show_results` function from the `utils` module:
+To visualize all the results, one could simply call the `show_results` function from the `utils` module with an argument `save_dir` to specify the path to read (!) and save all the information:
 
 ```python
-show_results(solver.save_dir)
+show_results(save_dir)
 ```
 
+This creates two files: `save_dir/results.png` and `save_dir/results.txt`. The former contains a picture, depicting entire optimization processes for comparison and the latter directly compares the final results in a form of a table.
 ---
 
 A terminal command to run an experiment manually:

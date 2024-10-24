@@ -192,7 +192,15 @@ def select(model, observed_points, candidate_points, n_samples=5, n_max_trials=1
     return [best_point]
 
 class LLAMBO(Solver):
+    """
+    Solver proposed in "Large Language Models to Enhance Bayesian Optimization".
+    """
     def __init__(self, problem, budget, k_init=10, k_samples=5, k_memory=100, seed=0):
+        """
+        Additional Input:
+            k_memory - capacity of a known set of points that 
+                       is given to an LLM in every optimization step
+        """
         super().__init__(problem, budget, k_init, k_samples, seed)
         self.model = ChatGPT()
         self.memory = Memory(size=k_memory)

@@ -8,8 +8,8 @@ class Problem():
     def __init__(self, d=10, n=2):
         """
         Input:
-            d - number of points sampled on each step (int)
-            n - random seed to determine the process (int)
+            d - dimensionality of the problem (int)
+            n - mode of the problem (int)
         """
         self.d = d
         self.n = n

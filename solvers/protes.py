@@ -75,7 +75,14 @@ def _sample(Yl, Ym, Yr, Zm, key):
     return jnp.hstack((il, im, ir))
 
 class PROTES(Solver):
+    """
+    Solver proposed in "PROTES: Probabilistic Optimization with Tensor Sampling".
+    """
     def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10, seed=0):
+        """
+        Additional Input:
+            k_top - number of points subselected from sampled points in every optimization step
+        """
         super().__init__(problem, budget, 0, k_samples, seed)
         self.k_top = k_top
 

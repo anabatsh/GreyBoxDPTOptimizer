@@ -5,7 +5,16 @@ from .base import Problem
 
 
 class Net(Problem):
+    """
+    Optimization problem that has a simple convolutional 
+    neural network as a target and constraints function.
+    """
     def __init__(self, d=10, n=2, seed=0, q=0.5):
+        """
+        Additional Input:
+            seed - random seed to determine the nets (int)
+            q - rate of the points satisfying the constraints (float in [0, 1])
+        """
         super().__init__(d, n)
         torch.manual_seed(seed)
 
