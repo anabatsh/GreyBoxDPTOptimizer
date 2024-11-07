@@ -28,7 +28,7 @@ class TrainConfig:
     # model params
     num_states: int = 1    # CUSTOM
     num_actions: int = 16  # CUSTOM
-    hidden_dim: int = 512
+    hidden_dim: int = 32
     num_layers: int = 4
     num_heads: int = 4
     seq_len: int = 50
@@ -45,12 +45,12 @@ class TrainConfig:
     weight_decay: float = 1e-4
     clip_grad: Optional[float] = None
     batch_size: int = 16 #128
-    update_steps: int = 50#00 #125_000
+    update_steps: int = 5000 #125000
     num_workers: int = 0
     label_smoothing: float = 0.0
 
     # evaluation params
-    eval_every: int = 10_000
+    eval_every: int = 1000
     eval_episodes: int = 200
     eval_train_goals: int = 20
     eval_test_goals: int = 50
@@ -82,13 +82,13 @@ def train(config: TrainConfig):
 
     dict_config = asdict(config)
     # dict_config["mlc_job"] = os.getenv("PLATFORM_JOB_NAME")
-    # wandb.init(
-    #     project=config.project,
-    #     group=config.group,
-    #     name=config.name,
-    #     entity=config.entity,
-    #     config=dict_config,
-    # )
+    wandb.init(
+        project=config.project,
+        group=config.group,
+        name=config.name,
+        entity=config.entity,
+        config=dict_config,
+    )
 
     if not os.path.exists(config.learning_histories_path):
         from src.utils.data import results2trajectories
@@ -220,14 +220,14 @@ def train(config: TrainConfig):
             if config.with_scheduler:
                 current_lr = scheduler.get_last_lr()[0]
 
-            # wandb.log(
-            #     {
-            #         "loss": loss.item(),
-            #         "accuracy": accuracy,
-            #         "lr": current_lr
-            #     },
-            #     step=global_step,
-            # )
+            wandb.log(
+                {
+                    "loss": loss.item(),
+                    "accuracy": accuracy,
+                    "lr": current_lr
+                },
+                step=global_step,
+            )
 
             if global_step % config.eval_every == 0:
                 model.eval()
