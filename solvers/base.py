@@ -7,6 +7,13 @@ LARGE_CONST = 1e+5
 
 
 def set2text(points, targets, constraints):
+    """
+    Function to write a step in form of {point -> target | constraint}.
+    Input:
+        points - points (iterable of shape [batch_size, d])
+        targets - target values corrresponding to the points (iterable of shape [batch_size, d])
+        constraints -  constraint flags corrresponding to the points (iterable of shape [batch_size, d])
+    """
     def compress(point): return '(' + ', '.join(str(x) for x in point) + ')'
 
     if isinstance(targets, float) and isinstance(constraints, bool):

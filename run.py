@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # run the solver for n_runs times
     for seed in tqdm(range(args.n_runs), desc=args.solver):
         # save the results to {save dir}/{problem}/{solver}/{solver seed}
-        save_dir = os.path.join(args.save_dir, args.problem, args.solver, str(seed))
+        save_dir = os.path.join(args.save_dir, problem.name, args.solver, str(seed))
         os.makedirs(save_dir, exist_ok=True)
         solver = solver_class(
             problem=problem, budget=args.budget, 

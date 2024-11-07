@@ -18,7 +18,7 @@ class Net(Problem):
         super().__init__(d, n)
         torch.manual_seed(seed)
 
-        kernel_size = 5
+        kernel_size = min(5, d)
         self.f = nn.Sequential(
             nn.Conv1d(1, 1, kernel_size, stride=kernel_size, bias=False),
             nn.Linear(d//kernel_size, 1)
@@ -29,6 +29,7 @@ class Net(Problem):
             nn.Sigmoid()
         )
         self.q = q
+        self.name = f'Net_{seed}'
 
     def target(self, i):
         x = torch.tensor(np.array(i)).to(torch.float32).reshape(-1, 1, self.d)

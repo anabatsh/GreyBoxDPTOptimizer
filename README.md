@@ -116,7 +116,13 @@ python ./run.py
 To run several experiments, one can edit the `run.sh` file and execute
 
 ```bash
-bash run.sh
+bash run.sh i
 ```
 
+Here `i` is a random seed that serves as an additional parameter of the prticular problem `Net` which is written in the `run.sh` file as a default problem. 
+
 Note that the default `run.sh` file already contains all the benchmarks and calls to visualization functions. One can duplicate it to set another problem or set of hyperparameters.
+
+---
+### Decision Pretrained Transformer
+

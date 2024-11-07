@@ -1,0 +1,103 @@
+iteration (1/50)
+(0, 0, 0, 0) ->  0.2381 | True
+iteration (2/50)
+(1, 0, 1, 0) ->  0.3456 | True
+iteration (3/50)
+(1, 0, 0, 0) ->  0.2871 | True
+iteration (4/50)
+(0, 1, 1, 1) ->  0.2349 | True
+iteration (5/50)
+(0, 0, 0, 1) ->  0.2272 | True
+iteration (6/50)
+(0, 0, 0, 1) ->  0.2272 | True
+iteration (7/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (8/50)
+(0, 0, 0, 1) ->  0.2272 | True
+iteration (9/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (10/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (11/50)
+(0, 0, 1, 1) ->  0.2857 | True
+iteration (12/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (13/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (14/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (15/50)
+(1, 1, 1, 0) ->  0.2948 | True
+iteration (16/50)
+(1, 1, 1, 0) ->  0.2948 | True
+iteration (17/50)
+(1, 1, 1, 0) ->  0.2948 | True
+iteration (18/50)
+(1, 1, 0, 0) ->  0.2362 | True
+iteration (19/50)
+(1, 0, 1, 0) ->  0.3456 | True
+iteration (20/50)
+(0, 1, 1, 0) ->  0.2458 | True
+iteration (21/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (22/50)
+(1, 0, 1, 1) ->  0.3347 | True
+iteration (23/50)
+(1, 0, 0, 0) ->  0.2871 | True
+iteration (24/50)
+(0, 0, 0, 0) ->  0.2381 | True
+iteration (25/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (26/50)
+(0, 0, 1, 0) ->  0.2966 | True
+iteration (27/50)
+(0, 1, 1, 1) ->  0.2349 | True
+iteration (28/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (29/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (30/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (31/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (32/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (33/50)
+(0, 0, 0, 1) ->  0.2272 | True
+iteration (34/50)
+(1, 1, 1, 1) ->  0.2839 | True
+iteration (35/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (36/50)
+(1, 1, 0, 1) ->  0.2253 | True
+iteration (37/50)
+(1, 1, 0, 0) ->  0.2362 | True
+iteration (38/50)
+(0, 1, 0, 0) ->  0.1872 | True
+iteration (39/50)
+(0, 0, 1, 1) ->  0.2857 | True
+iteration (40/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (41/50)
+(0, 1, 1, 1) ->  0.2349 | True
+iteration (42/50)
+(1, 1, 0, 1) ->  0.2253 | True
+iteration (43/50)
+(1, 0, 0, 1) ->  0.2762 | True
+iteration (44/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (45/50)
+(0, 1, 1, 1) ->  0.2349 | True
+iteration (46/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (47/50)
+(0, 1, 1, 0) ->  0.2458 | True
+iteration (48/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (49/50)
+(0, 1, 0, 1) ->  0.1763 | True
+iteration (50/50)
+(1, 1, 1, 1) ->  0.2839 | True
+finish
+best result (14/50)
+(0, 1, 0, 1) ->  0.1763 | True

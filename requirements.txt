@@ -1,0 +1,17 @@
+tqdm
+dataclasses
+# gymnasium
+numpy
+pyrallis
+wandb
+matplotlib
+torch
+torchvision
+flash_attn
+prettytable
+jax
+jaxlib
+bayesian-optimization
+scikit-learn
+nevergrad
+optax==0.1.7

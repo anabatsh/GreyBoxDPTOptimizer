@@ -164,7 +164,7 @@ if __name__ == '__main__':
     problem = problem_class(d=args.d, n=args.n, **args.problem_kwargs)
 
     # save the results to {save dir}/{problem}
-    save_dir = os.path.join(args.save_dir, args.problem)
+    save_dir = os.path.join(args.save_dir, problem.name)
     os.makedirs(save_dir, exist_ok=True)
 
     # vizualize the problem on 2D plot
