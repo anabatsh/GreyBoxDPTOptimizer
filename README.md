@@ -136,8 +136,8 @@ bash dpt_run.sh
 
 Thus, two steps are performed: 
 
-1. The file `run.sh` is run $n_{seeds}$ times with different seeds `i`, creating $n_{seeds} \times n_{solvers} \times n_{runs}$ optimization trajectories of the selected solvers and saving them to `save_dir`.
-2. The file `train_dpt.py` from `solvers.dpt` is called to pretrain a decision transformer on the obtained dataset of optimization trajectories.
+1. The file `run.sh` is run $n_{seeds}$ times with different seeds `i`, creating $n_{seeds} \times n_{solvers} \times n_{runs}$ optimization trajectories of the selected solvers and saving them to `save_dir/`.
+2. The file `train_dpt.py` from `solvers.dpt` is called to pretrain a decision transformer on the obtained dataset of optimization trajectories. Configs of the pretrained model are stored in `solvers/dpt/checkpoints.`
 
 If there already are some optimization trajectories which we want to train the dpt on, simply run
 
@@ -145,3 +145,4 @@ If there already are some optimization trajectories which we want to train the d
 python3 solvers/dpt/train_dpt.py
 ```
 
+In order to load a DPT from a config and test it on a problem, please, use corresponding code from  `dpt.ipynb` since there is no special bush runner for that yet.
