@@ -10,9 +10,10 @@ from torch.utils.data import DataLoader
 import wandb
 from tqdm.autonotebook import tqdm
 
-from src.model_dpt import DPT_K2D
-from src.utils.data import MarkovianDataset
-from src.utils.schedule import cosine_annealing_with_warmup
+from test_dpt import test
+from solvers.dpt.src.model_dpt import DPT_K2D
+from solvers.dpt.src.utils.data import MarkovianDataset
+from solvers.dpt.src.utils.schedule import cosine_annealing_with_warmup
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -50,7 +51,7 @@ class TrainConfig:
     label_smoothing: float = 0.0
 
     # evaluation params
-    eval_every: int = 1000
+    eval_every: int = 200
     eval_episodes: int = 200
     eval_train_goals: int = 20
     eval_test_goals: int = 50
@@ -91,7 +92,7 @@ def train(config: TrainConfig):
     )
 
     if not os.path.exists(config.learning_histories_path):
-        from src.utils.data import results2trajectories
+        from solvers.dpt.src.utils.data import results2trajectories
         results_path = os.path.dirname(config.learning_histories_path)
         results_path = os.path.join(results_path, 'results')
         results2trajectories(read_dir=results_path, save_dir=config.learning_histories_path)
@@ -215,9 +216,23 @@ def train(config: TrainConfig):
             scheduler.step()
 
         with torch.no_grad():
-            a = torch.argmax(predicted_actions.flatten(0, 1), dim=-1)
-            t = torch.argmax(target_actions.flatten(0, 1), dim=-1)
-            accuracy = torch.sum(a == t) / a.shape[0]
+
+            logits = predicted_actions.flatten(0, 1)
+            temp = 1.0
+            temp = 1.0 if temp <= 0 else temp
+            probs = torch.nn.functional.softmax(logits / temp, dim=-1)
+
+            do_samples = False
+            if do_samples:
+                a = torch.multinomial(probs, num_samples=1).squeeze(1)
+            else:
+                a = torch.argmax(probs, dim=-1)
+
+            t = torch.argmax(target_actions, dim=-1)
+            a = a.reshape(t.shape)
+
+            # accuracy = torch.sum(a == t) / np.prod(t.shape)
+            accuracy = torch.sum(a[:, -1] == t[:, -1]) / t.shape[0]
 
             if config.with_scheduler:
                 current_lr = scheduler.get_last_lr()[0]
@@ -225,21 +240,33 @@ def train(config: TrainConfig):
             wandb.log(
                 {
                     "loss": loss.item(),
-                    "accuracy": accuracy,
-                    "lr": current_lr
+                    "train_accuracy": accuracy,
+                    # "lr": current_lr
                 },
                 step=global_step,
             )
 
             if global_step % config.eval_every == 0:
                 model.eval()
-                if config.checkpoints_path is not None:
-                    torch.save(
-                        model.state_dict(),
-                        os.path.join(
-                            config.checkpoints_path, f"model_{global_step}.pt"
-                        ),
-                    )
+
+                # offline test
+                from problems import Net
+                test_problem = Net(d=4, n=2, seed=0)
+                test_accuracy = test(model, test_problem)['accuracy']
+                wandb.log(
+                    {
+                        "test_accuracy": test_accuracy,
+                    },
+                    step=global_step,
+                )
+
+                # if config.checkpoints_path is not None:
+                #     torch.save(
+                #         model.state_dict(),
+                #         os.path.join(
+                #             config.checkpoints_path, f"model_{global_step}.pt"
+                #         ),
+                #     )
                 model.train()
 
     if config.checkpoints_path is not None:

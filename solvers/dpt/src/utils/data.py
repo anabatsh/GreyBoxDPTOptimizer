@@ -53,7 +53,7 @@ def results2trajectories(
                         "states": np.roll(states, 1),
                         "actions": actions,
                         "target_actions": np.array([ground_truth] * n),
-                        "rewards": states - np.roll(states, 1)
+                        "rewards": -1 * (states - np.roll(states, 1))
                     }
                     np.savez(f'{save_dir}/{problem}_{solver}_{seed}', **history, allow_pickle=True)
 
