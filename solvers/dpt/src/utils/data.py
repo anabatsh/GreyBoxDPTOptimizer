@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 def results2trajectories(
         read_dir='results', 
         save_dir='trajectories', 
-        solvers=['NoisyBandit', 'PSO', 'OnePlusOne', 'Portfolio', 'PSO', 'SPSA']
+        solvers=['NoisyBandit', 'PSO', 'OnePlusOne', 'Portfolio', 'PSO', 'SPSA', 'RandomSearch']
     ):
 
     if not os.path.exists(save_dir):

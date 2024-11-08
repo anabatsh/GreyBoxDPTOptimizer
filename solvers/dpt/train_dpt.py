@@ -39,13 +39,13 @@ class TrainConfig:
     pre_norm: bool = True
 
     # training params
-    learning_rate: float = 3e-4
+    learning_rate: float = 5e-4
     warmup_ratio: float = 0.05
     betas: Tuple[float, float] = (0.9, 0.999)
     weight_decay: float = 1e-4
     clip_grad: Optional[float] = None
-    batch_size: int = 16 #128
-    update_steps: int = 5000 #125000
+    batch_size: int = 64 #128
+    update_steps: int = 10000 #125000
     num_workers: int = 0
     label_smoothing: float = 0.0
 
@@ -56,8 +56,8 @@ class TrainConfig:
     eval_test_goals: int = 50
 
     # general params
-    learning_histories_path: str = "solvers/dpt/trajectories"
-    checkpoints_path: Optional[str] = "solvers/dpt/checkpoints"
+    learning_histories_path: str = "../GreyBoxDPTOptimizerData/trajectories"
+    checkpoints_path: Optional[str] = "../GreyBoxDPTOptimizerData/checkpoints"
     train_seed: int = 42
     data_seed: int = 0
     eval_seed: int = 42
@@ -92,7 +92,9 @@ def train(config: TrainConfig):
 
     if not os.path.exists(config.learning_histories_path):
         from src.utils.data import results2trajectories
-        results2trajectories(read_dir='results', save_dir=config.learning_histories_path)
+        results_path = os.path.dirname(config.learning_histories_path)
+        results_path = os.path.join(results_path, 'results')
+        results2trajectories(read_dir=results_path, save_dir=config.learning_histories_path)
 
     dataset = MarkovianDataset(config.learning_histories_path, seq_len=config.seq_len)
     dataloader = DataLoader(

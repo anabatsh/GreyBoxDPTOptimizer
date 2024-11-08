@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_runs', type=int, default=5, help='Number of the solver reruns (different seeds are used)')
     parser.add_argument('--save_dir', type=str, default='', help='Directory to save results')
     args = parser.parse_args()
-
+    
     # define a problem
     problem_class = getattr(problems, args.problem)
     problem = problem_class(d=args.d, n=args.n, **args.problem_kwargs)

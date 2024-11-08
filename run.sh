@@ -9,18 +9,21 @@ PROBLEM_ARGS=(
 RUNNER_ARGS=(
     "--budget 50"        # maximum number of calls to the target function
     "--n_runs 10"        # number of reruns for each solver
-    "--save_dir results" # directory to save the results
+    "--save_dir ../GreyBoxDPTOptimizerData/results" # directory to save the results
 )
 
 # nevergrad benchmarks
-python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver OnePlusOne
-python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PSO
-python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver NoisyBandit
-python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver SPSA
-python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver Portfolio
+# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver OnePlusOne
+# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PSO
+# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver NoisyBandit
+# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver SPSA
+# python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver Portfolio
 
 # PROTES benchmark
 # python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver PROTES --k_samples 5 --solver_kwargs '{"k_top":2}'
+
+# Random Search
+python ./run.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[@]} --solver RandomSearch --k_init 1 --k_samples 1
 
 # vizualize the results
 ! python ./utils.py ${PROBLEM_ARGS[@]} ${RUNNER_ARGS[2]}
