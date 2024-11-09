@@ -2,7 +2,11 @@ from typing import Optional
 import torch
 from torch import nn
 from torch.nn import functional as F
-from .nn import TransformerBlock
+
+try:
+    from utils.nn import TransformerBlock
+except ImportError:
+    from .utils.nn import TransformerBlock
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -12,7 +16,6 @@ class DPT_K2D(nn.Module):
         self,
         num_states: int,
         num_actions: int,
-        rnn_weights_path: Optional[str] = None,
         seq_len: int = 200,
         hidden_dim: int = 256,
         num_layers: int = 4,
@@ -21,7 +24,6 @@ class DPT_K2D(nn.Module):
         attention_dropout: float = 0.5,
         residual_dropout: float = 0.0,
         embedding_dropout: float = 0.1,
-        rnn_dropout: float = 0.0,
         normalize_qk: bool = False,
         pre_norm: bool = True,
     ) -> None:
@@ -71,8 +73,8 @@ class DPT_K2D(nn.Module):
         self,
         query_states: torch.Tensor,         # [batch_size, 1]
         context_states: torch.Tensor,       # [batch_size, seq_len]
-        context_next_states: torch.Tensor,  # [batch_size, seq_len]
         context_actions: torch.Tensor,      # [batch_size, seq_len]
+        context_next_states: torch.Tensor,  # [batch_size, seq_len]
         context_rewards: torch.Tensor,      # [batch_size, seq_len]
     ) -> torch.Tensor:
 

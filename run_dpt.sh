@@ -5,4 +5,4 @@ for i in {1..100}; do
     ./run.sh $i
 done
 
-python3 ./solvers/dpt/train_dpt.py
+# python3 ./solvers/dpt/train_dpt.py

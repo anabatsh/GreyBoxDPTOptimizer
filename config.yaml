@@ -1,0 +1,52 @@
+TrainConfig:
+    wandb_params:
+        project: "GreyBoxDPT"
+        group: "markoviann"
+        name: null
+        entity: null
+
+    model_params:
+        num_states: 1    # CUSTOM
+        num_actions: 16  # CUSTOM
+        hidden_dim: 64
+        num_layers: 4
+        num_heads: 4
+        seq_len: 50
+        attention_dropout: 0.5
+        residual_dropout: 0.1
+        embedding_dropout: 0.3
+        normalize_qk: False
+        pre_norm: True
+        state_rnn_embedding: 1
+
+    # training params
+    learning_rate: 0.0005
+    warmup_ratio: 0.05
+    betas: [0.9, 0.999]
+    weight_decay: 0.0001
+    clip_grad: null
+    batch_size: 128
+    update_steps: 20000 #125000
+    num_workers: 0
+    label_smoothing: 0.0
+
+    # evaluation params
+    eval_every: 200
+    eval_episodes: 200
+    eval_train_goals: 20
+    eval_test_goals: 50
+
+    # general params
+    learning_histories_path: "../GreyBoxDPTOptimizerData/trajectories"
+    checkpoints_path: "../GreyBoxDPTOptimizerData/checkpoints"
+    train_seed: 42
+    data_seed: 0
+    eval_seed: 42
+
+    rnn_hidden: 1
+    rnn_dropout: 0.0
+    subsample: 1
+
+    with_scheduler: false
+    with_prior: false
+    with_key_indicator: true
