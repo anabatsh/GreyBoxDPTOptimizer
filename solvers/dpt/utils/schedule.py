@@ -43,3 +43,13 @@ def linear_warmup(optimizer, warmup_steps):
     )
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _decay_func)
     return scheduler
+
+def cosine_annealing_with_warmup(optimizer, warmup_epochs, total_epochs):
+    from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
+    warmup_lr_lambda = lambda epoch: (epoch + 1) / warmup_epochs if epoch < warmup_epochs else 1
+    warmup_scheduler = LambdaLR(optimizer, lr_lambda=warmup_lr_lambda)
+    cosine_scheduler = CosineAnnealingLR(optimizer, T_max=(total_epochs - warmup_epochs), eta_min=0)
+    scheduler = SequentialLR(
+        optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+    )
+    return scheduler

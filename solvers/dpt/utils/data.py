@@ -1,9 +1,9 @@
-import random
-import numpy as np
 import glob
 import os
-from torch.utils.data import IterableDataset
-from typing import List, Dict, Any
+import numpy as np
+import torch
+from functools import partial
+from torch.utils.data import Dataset
 
 
 def results2trajectories(
@@ -50,17 +50,15 @@ def results2trajectories(
 
                     n = len(r)
                     history = {
-                        "states": np.roll(states, 1),
+                        "states": states.reshape(-1, 1),
                         "actions": actions,
-                        "target_actions": np.array([ground_truth] * n),
-                        "rewards": -1 * (states - np.roll(states, 1))
+                        "target_actions": np.array([ground_truth] * n)
                     }
                     np.savez(f'{save_dir}/{problem}_{solver}_{seed}', **history, allow_pickle=True)
 
-def load_markovian_learning_histories(path: str) -> List[Dict[str, Any]]:
-    files = glob.glob(f"{path}/*.npz")
-
+def load_markovian_learning_histories(path: str):
     learning_histories = []
+    files = glob.glob(f"{path}/*.npz")
     for filename in files:
         with np.load(filename, allow_pickle=True) as f:
             learning_histories.append(
@@ -68,66 +66,91 @@ def load_markovian_learning_histories(path: str) -> List[Dict[str, Any]]:
                     "states": f["states"],
                     "actions": f["actions"],
                     "target_actions": f["target_actions"],
-                    "rewards": f["rewards"]
+                    "name": os.path.basename(filename)[:-4],
                 }
             )
-
     return learning_histories
 
-class MarkovianDataset(IterableDataset):
+class MarkovianDataset(Dataset):
     """
     A dataset class that shuffles the learning histories for dpt training
     a query_state and respective target action for it is sampled from the same
     learning history (to ensure it is related to the same goal with the context) but
     is not related to contextual samples (as in original implementation).
-
-    It is also specified for Dark-Key-To-Door Environment with `has_key` indicator
-    to make this env an MDP (because DPT can only solve MDPs, not POMDPs)
     """
-
-    def __init__(self, data_path: str, seq_len: int = 60) -> None:
+    def __init__(self, data_path: str, seq_len: int = 60):
         super().__init__()
         self.seq_len = seq_len
-        print("Loading training histories...")
         self.histories = load_markovian_learning_histories(data_path)
-        print(f"Num histories: {len(self.histories)}")
 
-    def __prepare_sample(self, history_idx: int, context_indexes: List[int], query_idx: int):
-        history = self.histories[history_idx]
-
+    def __len__(self):
+        return len(self.histories)
+    
+    def __getitem__(self, index: int):
+        history = self.histories[index]
+        history_len = history["states"].shape[0]
         assert (
             history["states"].shape[0] ==
-            history["actions"].shape[0] ==
-            history["rewards"].shape[0]
+            history["actions"].shape[0]
         )
+        context_indexes = np.random.randint(1, history_len, size=self.seq_len)
+        query_idx = np.random.randint(1, history_len)
 
-        query_states = history["states"][query_idx].flatten()
-        states = history["states"][context_indexes].flatten()
-        next_states = history["states"][context_indexes + 1].flatten()
-        actions = history["actions"][context_indexes].flatten()
-        target_actions = history["target_actions"][query_idx].flatten()
-        rewards = history["rewards"][context_indexes].flatten()
-
-        return (
+        query_state = history["states"][query_idx - 1]
+        states = history["states"][context_indexes - 1]
+        actions = history["actions"][context_indexes]
+        next_states = history["states"][context_indexes]
+        rewards = (next_states - states)[:, 0]
+        target_action = history["target_actions"][query_idx]
+        return {
+            "query_state": torch.tensor(query_state).to(torch.float),
+            "states": torch.tensor(states).to(torch.float), 
+            "actions": torch.tensor(actions).to(torch.long),
+            "next_states": torch.tensor(next_states).to(torch.float),
+            "rewards": torch.tensor(rewards).to(torch.float),
+            "target_action": torch.tensor(target_action).to(torch.long)
+        }
+        # return {
+        #     "query_state": torch.tensor(query_state).to(torch.float),
+        #     "actions": torch.tensor(actions).to(torch.long),
+        #     "states": torch.tensor(states).to(torch.float), 
+        #     "target_action": torch.tensor(target_action).to(torch.long)
+        # }
+    
+class MarkovianOfflineDataset(Dataset):
+    """
+    """
+    def __init__(
+            self, 
+            problems, 
             query_states,
-            states,
-            actions,
-            next_states,
-            rewards,
+            transition_function,
+            reward_function,
             target_actions,
-        )
+            seq_len
+        ):
+        super().__init__()
+        self.problems = problems
+        self.query_states = query_states
+        self.transition_function = transition_function
+        self.reward_function = reward_function
+        self.target_actions = target_actions
+        self.seq_len = seq_len
 
-    def __iter__(self):
-        while True:
-            history_idx = random.randint(0, len(self.histories) - 1)
-
-            context_indexes = np.random.randint(
-                0,
-                self.histories[history_idx]["rewards"].shape[0] - 2,
-                size=self.seq_len,
-            )
-            query_idx = random.randint(
-                0, self.histories[history_idx]["rewards"].shape[0] - 1
-            )
-
-            yield self.__prepare_sample(history_idx, context_indexes, query_idx)
+    def __len__(self):
+        return len(self.problems)
+    
+    def __getitem__(self, index: int):
+        return {
+            "query_state": torch.tensor(self.query_states[index]).to(torch.float),
+            "transition_function": partial(self.transition_function, problem=self.problems[index]), 
+            "reward_function": partial(self.reward_function, problem=self.problems[index]),
+            "target_action": torch.tensor(self.target_actions[index]).to(torch.long),
+            "n_steps": self.seq_len
+        }
+        # return {
+        #     "query_state": torch.tensor(self.query_states[index]).to(torch.float),
+        #     "transition_function": partial(self.transition_function, problem=self.problems[index]), 
+        #     "target_action": torch.tensor(self.target_actions[index]).to(torch.long),
+        #     "n_steps": self.seq_len
+        # }

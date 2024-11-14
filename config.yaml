@@ -4,11 +4,12 @@ TrainConfig:
         group: "markoviann"
         name: null
         entity: null
+        save_dir: "../GreyBoxDPTOptimizerData/"
 
     model_params:
         num_states: 1    # CUSTOM
         num_actions: 16  # CUSTOM
-        hidden_dim: 64
+        hidden_dim: 128
         num_layers: 4
         num_heads: 4
         seq_len: 50
@@ -25,19 +26,23 @@ TrainConfig:
     betas: [0.9, 0.999]
     weight_decay: 0.0001
     clip_grad: null
-    batch_size: 128
+    batch_size: 32 # 512
     update_steps: 20000 #125000
+    max_epochs: 3 #300
     num_workers: 0
+    warmup_epochs: 2
     label_smoothing: 0.0
 
     # evaluation params
+    log_every_n_steps: 1
     eval_every: 200
     eval_episodes: 200
     eval_train_goals: 20
     eval_test_goals: 50
 
     # general params
-    learning_histories_path: "../GreyBoxDPTOptimizerData/trajectories"
+    train_histories_path: "../GreyBoxDPTOptimizerData/trajectories_test"
+    test_histories_path: "../GreyBoxDPTOptimizerData/trajectories_test"
     checkpoints_path: "../GreyBoxDPTOptimizerData/checkpoints"
     train_seed: 42
     data_seed: 0
@@ -50,3 +55,6 @@ TrainConfig:
     with_scheduler: false
     with_prior: false
     with_key_indicator: true
+
+    do_samples: true
+    temperature: 0.9

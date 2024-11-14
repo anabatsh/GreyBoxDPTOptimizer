@@ -1,33 +1,26 @@
 import os
-from dataclasses import asdict, dataclass
-from typing import Optional, Tuple
-import random
-import numpy as np
-import pyrallis
 import yaml
 import torch
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
-import wandb
-from tqdm.autonotebook import tqdm
+import lightning as L
 
 try:
     from model import DPT_K2D
-    from utils.data import MarkovianDataset
+    from model_bo import DPT_K2D
     from utils.schedule import cosine_annealing_with_warmup
 except ImportError:
     from .model import DPT_K2D
-    from .utils.data import MarkovianDataset
+    from .model_bo import DPT_K2D
     from .utils.schedule import cosine_annealing_with_warmup
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def set_seed(seed: int):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
+# def set_seed(seed: int):
+#     os.environ["PYTHONHASHSEED"] = str(seed)
+#     np.random.seed(seed)
+#     random.seed(seed)
+#     torch.manual_seed(seed)
 
 def load_config(config_path):
     if not os.path.exists(config_path):
@@ -36,229 +29,192 @@ def load_config(config_path):
         config = yaml.safe_load(file)
     return config
 
-class DPTSolver():
+class DPTSolver(L.LightningModule):
     def __init__(self, config_path):
+        super().__init__()
         self.config = load_config(config_path)['TrainConfig']
-        self.model = DPT_K2D(**self.config["model_params"]).to(DEVICE)
-        # if needed, test beforehand
-        # model = torch.compile(model)
-        # print(f"Parameters: {sum(p.numel() for p in self.model.parameters())}")
+        self.model = DPT_K2D(**self.config["model_params"]).to(device)
+        self.save_hyperparameters()
 
-    def get_batch(self, batch):
-        (
-            query_states,
-            states,
-            actions,
-            next_states,
-            rewards,
-            target_actions,
-        ) = [b.to(DEVICE) for b in batch]
-
-        query_states = query_states.to(torch.float)
-        states = states.to(torch.float)
-        actions = actions.to(torch.long)
-        next_states = next_states.to(torch.float)
-        rewards = rewards.to(torch.float)
-    
-        target_actions = target_actions.squeeze(-1)
-        if self.config["with_prior"]:
-            target_actions = (
-                F.one_hot(target_actions, num_classes=self.config["model_params"]["num_actions"])
-                .unsqueeze(1)
-                .repeat(1, self.config["model_params"]["seq_len"] + 1, 1)
-                .float()
-            )
+    def get_action(self, logits):
+        temp = self.config["temperature"]
+        if temp <= 0:
+            temp = 1.0
+        probs = F.softmax(logits / temp, dim=-1)
+        if not self.training and self.config["do_samples"]:
+            action = torch.multinomial(probs, num_samples=1).squeeze(1)
         else:
-            target_actions = (
-                F.one_hot(target_actions, num_classes=self.config["model_params"]["num_actions"])
-                .unsqueeze(1)
-                .repeat(1, self.config["model_params"]["seq_len"], 1)
-                .float()
-            )
-        return (
-            query_states,
-            states,
-            actions,
-            next_states,
-            rewards,
-            target_actions
-        )
-    
-    def get_loss(self, predicted_actions, target_actions):
-        loss = F.cross_entropy(
-            input=predicted_actions.flatten(0, 1),
-            target=target_actions.flatten(0, 1),
-            label_smoothing=self.config["label_smoothing"],
-        )
+            action = torch.argmax(probs, dim=-1)
+        return action
+
+    def get_loss(self, logits, target_action):
+        """
+        if training:
+            logits:        torch.Tensor # [batch_size, n_steps, num_actions]
+            target_action: torch.Tensor # [batch_size]
+        if test:
+            logits:        torch.Tensor # [batch_size, num_actions]
+            target_action: torch.Tensor # [batch_size]
+        """
+        if logits.ndim == 3:
+            input = logits.transpose(1, 2)
+            target = target_action.repeat(input.shape[-1], 1).transpose(0, 1)
+        else:
+            input = logits
+            target = target_action
+        loss = F.cross_entropy(input, target, label_smoothing=self.config["label_smoothing"])
         return loss
     
-    def get_actions(self, logits):
-        temp = 1.0
-        temp = 1.0 if temp <= 0 else temp
-        probs = torch.nn.functional.softmax(logits / temp, dim=-1)
-
-        do_samples = False
-        if do_samples:
-            actions = torch.multinomial(probs, num_samples=1).squeeze(1)
-        else:
-            actions = torch.argmax(probs, dim=-1)
-        return actions
-
-    def get_accuracy(self, predicted_actions, target_actions):
+    def get_accuracy(self, logits, target_action):
         with torch.no_grad():
-            logits = predicted_actions.flatten(0, 1)
-            actions = self.get_actions(logits)
-            target_actions = torch.argmax(target_actions, dim=-1)
-            actions = actions.reshape(target_actions.shape)
-            # accuracy = torch.sum(a == t) / np.prod(t.shape)
-            accuracy = torch.sum(actions[:, -1] == target_actions[:, -1]) / target_actions.shape[0]
+            action = self.get_action(logits)
+            target = target_action[:, None] if action.ndim == 2 else target_action
+            accuracy = (action == target).to(torch.float).mean()
         return accuracy
-
-    def train_step(self, batch):
-        with torch.amp.autocast('cuda'):
-            (
-                query_states,
-                states,
-                actions,
-                next_states,
-                rewards,
-                target_actions
-            ) = self.get_batch(batch)
-
-            predicted_actions = self.model(
-                query_states=query_states,
-                context_states=states,
-                context_actions=actions,
-                context_next_states=next_states,
-                context_rewards=rewards,
-            )
-
-            if not self.config["with_prior"]:
-                predicted_actions = predicted_actions[:, 1:, :]
-
-            loss = self.get_loss(predicted_actions, target_actions)
-
-        self.scaler.scale(loss).backward()
-        if self.config["clip_grad"] is not None:
-            self.scaler.unscale_(self.optim)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config["clip_grad"])
-        self.scaler.step(self.optim)
-        self.scaler.update()
-        self.optim.zero_grad(set_to_none=True)
-        if self.config["with_scheduler"]:
-            self.scheduler.step()
-
-        loss = loss.item()
-        accuracy = self.get_accuracy(predicted_actions, target_actions)
-        return loss, accuracy
-
-    def set_train(self):
-        dataset = MarkovianDataset(
-            data_path=self.config["learning_histories_path"], 
-            seq_len=self.config["model_params"]["seq_len"]
+    
+    def _offline_step(self, batch, batch_idx):
+        logits = self.model(
+            query_state=batch["query_state"].to(device),
+            context_states=batch["states"].to(device),
+            context_actions=batch["actions"].to(device),
+            context_next_states=batch["next_states"].to(device),
+            context_rewards=batch["rewards"].to(device),
         )
-        self.dataloader = DataLoader(
-            dataset=dataset,
-            batch_size=self.config["batch_size"],
-            pin_memory=True,
-            shuffle=False,
-            num_workers=self.config["num_workers"],
-        )
+        target_action = batch["target_action"].to(device)
+        loss = self.get_loss(logits, target_action)
+        accuracy = self.get_accuracy(logits, target_action)
+        return {"loss": loss, "accuracy": accuracy}
 
-        self.optim = torch.optim.AdamW(
+    def _online_step(self, batch, batch_idx):
+        loss = []
+        accuracy = []
+        for sample in batch:
+            sample_loss, sample_accuracy = self.run(**sample).values()
+            loss.append(sample_loss)
+            accuracy.append(sample_accuracy)
+        loss = torch.tensor(loss).mean()
+        accuracy = torch.tensor(accuracy).mean()
+        return {"loss": loss, "accuracy": accuracy}
+
+    def training_step(self, batch, batch_idx):
+        loss, accuracy = self._offline_step(batch, batch_idx).values()
+        self.log("train loss", loss, on_step=True, on_epoch=False)
+        self.log("train accuracy", accuracy, on_step=True, on_epoch=False)
+        return {"loss": loss, "accuracy": accuracy}
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        if isinstance(batch, dict) and "states" in batch:
+            loss, accuracy = self._offline_step(batch, batch_idx).values()
+        else:
+            loss, accuracy = self._online_step(batch, batch_idx).values()
+        return {"loss": loss, "accuracy": accuracy}
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        loss, accuracy = self.test_step(batch, batch_idx, dataloader_idx).values()
+        self.log(f"val loss", loss, on_step=False, on_epoch=True)
+        self.log(f"val accuracy", accuracy, on_step=False, on_epoch=True)
+        return {"loss": loss, "accuracy": accuracy}
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
             params=self.model.parameters(),
             lr=self.config["learning_rate"],
             weight_decay=self.config["weight_decay"],
             betas=self.config["betas"],
         )
-
-        current_lr = self.config["learning_rate"]
         if self.config["with_scheduler"]:
-            self.scheduler = cosine_annealing_with_warmup(
-                optimizer=self.optim,
-                warmup_steps=int(self.config["update_steps"] * self.config["warmup_ratio"]),
-                total_steps=self.config["update_steps"],
+            scheduler = cosine_annealing_with_warmup(
+                optimizer=optimizer,
+                warmup_epochs=self.config["warmup_epochs"],
+                total_epochs=self.config["max_epochs"],
             )
-        self.scaler = torch.amp.GradScaler('cuda')
+            return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        return optimizer
 
-    def train(self, eval_function):
-        set_seed(self.config["train_seed"])
-        self.set_train()
+    def run(
+            self, query_state, 
+            transition_function, reward_function, 
+            target_action=None, n_steps=10,
+            return_trajectory=False
+        ):
+        """
+        query_state:    torch.Tensor # [num_states],
+        transition function: (state, action) -> new state
+            state:      torch.Tensor # [num_states]
+            action:     torch.Tensor # [1]
+            new_state:  torch.Tensor # [num_states]
+        reward_function: (states, actions, next_states) -> reward
+            states:     torch.Tensor  # [n_steps, num_states]
+            actions:    torch.Tensor  # [n_steps]
+            new_states: torch.Tensor  # [n_steps, num_states]
+            reward:     torch.Tensor  # [1]
+        """
+        num_actions = self.config["model_params"]["num_actions"]
+        num_states = self.config["model_params"]["num_states"]
+        assert query_state.shape[-1] == num_states
 
-        wandb.init(
-            config=self.config,
-            **self.config["wandb_params"]
-        )
-
-        for global_step, batch in tqdm(enumerate(self.dataloader), 'Training'):
-            if global_step > self.config["update_steps"]:
-                break
-            loss, accuracy = self.train_step(batch)
-
-            if self.config["with_scheduler"]:
-                current_lr = self.scheduler.get_last_lr()[0]
-
-            wandb.log(
-                {
-                    "loss": loss,
-                    "accuracy": accuracy,
-                    # "lr": current_lr
-                },
-                step=global_step,
+        # [1, num_states]
+        query_state = query_state.to(dtype=torch.float, device=device).unsqueeze(0)
+        # [1, 0, num_states]
+        states = torch.Tensor(1, 0, num_states).to(dtype=torch.float, device=device)
+        # [1, 0, num_states]
+        next_states = torch.Tensor(1, 0, num_states).to(dtype=torch.float, device=device)
+        # [1, 0, num_actions]
+        logits = torch.Tensor(1, 0, num_actions).to(dtype=torch.long, device=device)
+        # [1, 0]
+        actions = torch.Tensor(1, 0).to(dtype=torch.long, device=device)
+        # [1, 0]
+        rewards = torch.Tensor(1, 0).to(dtype=torch.float, device=device)
+        
+        for _ in range(n_steps):
+            # [1, num_actions]
+            predicted_logits = self.model(
+                query_state=query_state,
+                context_states=states,
+                context_next_states=next_states,
+                context_actions=actions,
+                context_rewards=rewards,
             )
+            # [1]
+            predicted_action = self.get_action(predicted_logits)
+            # [1, num_states]
+            state = transition_function(
+                query_state.cpu(), predicted_action.cpu()
+            ).to(dtype=torch.float, device=device)
+            # [1, n_step, num_states]
+            states = torch.cat([states, query_state.unsqueeze(1)], dim=1)
+            # [1, n_step, num_states]
+            next_states = torch.cat([next_states, state.unsqueeze(1)], dim=1)
+            # [1, n_step, num_actions]
+            logits = torch.cat([logits, predicted_logits.unsqueeze(1)], dim=1)
+            # [1, n_step]
+            actions = torch.cat([actions, predicted_action.unsqueeze(1)], dim=1)
+            # [1]
+            reward = reward_function(
+                states.cpu(), actions.cpu(), next_states.cpu(),
+            ).to(dtype=torch.float, device=device)
+            # [1, n_step]
+            rewards = torch.cat([rewards, reward.unsqueeze(1)], dim=1)
+            # [1, n_step]
+            query_state = state
 
-            if global_step % self.config["eval_every"] == 0:
-                eval_info = eval_function(self)
-                wandb.log(
-                    eval_info,
-                    step=global_step,
-                )
-                # # self.save_model(f"model_{global_step}.pt")
-                self.model.train()
+        result = {}
 
-        self.save_model(f"model_last.pt")
+        if return_trajectory:
+            result |= {
+                "query_state": query_state.cpu()[0],
+                "states": states.cpu()[0],
+                "logits": logits.cpu()[0],
+                "actions": actions.cpu()[0],
+                "next_states": next_states.cpu()[0],
+                "rewards": rewards.cpu()[0],
+            }
 
-    def save_model(self, checkpoint_name):
-        checkpoint_path = self.config["checkpoints_path"]
-        if checkpoint_path is not None:
-            torch.save(self.model.state_dict(), os.path.join(checkpoint_path, checkpoint_name))
+        if target_action is not None:
+            target_action = target_action.to(device).unsqueeze(0)
+            loss = self.get_loss(logits, target_action)
+            accuracy = (actions == target_action[:, None]).to(torch.float).mean()
+            # accuracy = self.get_accuracy(logits, target_action)
+            result |= {"loss": loss, "accuracy": accuracy}
 
-    def looad_model(self, checkpoint_path):
-        checkpoint = torch.load(checkpoint_path, weights_only=True)
-        self.model.load_state_dict(checkpoint)
-    
-    def test(self, query_states, transition_function, n_steps=10):
-        """
-        transition_function(state, action) = state'
-        """
-        with torch.no_grad():
-            self.model.eval()
-
-            states = torch.Tensor(1, 0)
-            next_states = torch.Tensor(1, 0)
-            actions = torch.Tensor(1, 0)
-            rewards = torch.Tensor(1, 0)
-
-            for _ in range(n_steps):
-                predicted_actions = self.model(
-                    query_states=query_states.to(dtype=torch.float, device=DEVICE),
-                    context_states=states.to(dtype=torch.float, device=DEVICE),
-                    context_next_states=next_states.to(dtype=torch.float, device=DEVICE),
-                    context_actions=actions.to(dtype=torch.long, device=DEVICE),
-                    context_rewards=rewards.to(dtype=torch.float, device=DEVICE),
-                )
-                predicted_action = self.get_actions(predicted_actions).cpu()[0]
-                state = transition_function(query_states, predicted_action)
-
-                states = torch.cat([states, query_states.unsqueeze(0)], dim=1)
-                next_states = torch.cat([next_states, state.unsqueeze(0)], dim=1)
-                actions = torch.cat([actions, torch.tensor([predicted_action]).unsqueeze(0)], dim=1)
-                rewards = torch.cat([rewards, (-1 * (state - query_states)).unsqueeze(0)], dim=1)
-                query_states = state
-        return (
-                query_states,
-                states,
-                actions,
-                next_states,
-                rewards
-        )
+        return result

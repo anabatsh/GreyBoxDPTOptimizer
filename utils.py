@@ -62,6 +62,27 @@ def show_problem(problem, save_dir=''):
     plt.savefig(save_path)
     # plt.show()
 
+def print_trajectory(trajectory, problem):
+    for _, (state, action, next_state) in enumerate(zip(
+            trajectory["states"], 
+            trajectory["actions"], 
+            trajectory["next_states"]
+        )):
+        action = int2bin(action, d=problem.d, n=problem.n)
+        print(f'step {_} | current state: {state[0].item():>8.6} -> suggested action: {action} -> new target: {next_state[0].item():.6}')
+    print()
+
+    query_state = trajectory["query_state"]
+    best_found_state = trajectory["next_states"].min(axis=0)
+    target_action = trajectory["target_action"]
+    target_action = int2bin(target_action, d=problem.d, n=problem.n)
+    target_state = problem.target(target_action)
+
+    print(f'query state: {query_state[0].item():.6}')
+    print(f'best found state: {best_found_state[0].item():.6}')
+    print(f'ground truth state: {target_state[0].item():.6}')
+    # print(f'all possible targets in an order:\n{np.sort(all_states)}')
+
 def show_results(read_dir, solvers=[]):
     """
     For given solvers and their reruns
