@@ -26,6 +26,7 @@ class DPT_K2D(nn.Module):
         embedding_dropout: float = 0.1,
         normalize_qk: bool = False,
         pre_norm: bool = True,
+        full_sequence = True,
     ) -> None:
         super().__init__()
 
@@ -33,14 +34,23 @@ class DPT_K2D(nn.Module):
         self.num_actions = num_actions
         self.seq_len = seq_len
         self.state_rnn_embedding = state_rnn_embedding
+        self.full_sequence = full_sequence
 
         self.embedd = nn.Linear(num_states, state_rnn_embedding)
 
-        # [state + action + next_state + reward]
-        self.embed_transition = nn.Linear(
-            2 * state_rnn_embedding + num_actions + 1,
-            hidden_dim,
-        )
+        if full_sequence:
+            # [state + action + next_state + reward]
+            self.embed_transition = nn.Linear(
+                2 * state_rnn_embedding + num_actions + 1,
+                hidden_dim,
+            )
+        else:
+            # [action + next_state]
+            self.embed_transition = nn.Linear(
+                state_rnn_embedding + num_actions,
+                hidden_dim,
+            )
+
         self.emb_dropout = nn.Dropout(embedding_dropout)
         self.blocks = nn.ModuleList(
             [
@@ -81,7 +91,6 @@ class DPT_K2D(nn.Module):
         if query_state.ndim < 3:
             query_state = query_state.unsqueeze(1)
 
-        batch_size = query_state.shape[0]
         assert (
             query_state.shape[0] == 
             context_states.shape[0] ==
@@ -118,7 +127,7 @@ class DPT_K2D(nn.Module):
         action_seq = torch.cat(
             [
                 torch.zeros(
-                    (batch_size, 1, self.num_actions),
+                    (context_actions_emb.shape[0], query_state_emb.shape[1], context_actions_emb.shape[-1]),
                     dtype=context_actions_emb.dtype,
                     device=context_actions_emb.device,
                 ),
@@ -131,7 +140,7 @@ class DPT_K2D(nn.Module):
         next_state_seq = torch.cat(
             [
                 torch.zeros(
-                    (batch_size, 1, self.state_rnn_embedding),
+                    (context_next_states_emb.shape[0], query_state_emb.shape[1], context_next_states_emb.shape[-1]),
                     dtype=context_next_states_emb.dtype,
                     device=context_next_states_emb.device,
                 ),
@@ -144,7 +153,7 @@ class DPT_K2D(nn.Module):
         reward_seq = torch.cat(
             [
                 torch.zeros(
-                    (batch_size, 1),
+                    (context_rewards.shape[0], query_state_emb.shape[1]),
                     dtype=context_rewards.dtype,
                     device=context_rewards.device,
                 ),
@@ -153,8 +162,13 @@ class DPT_K2D(nn.Module):
             dim=1,
         ).unsqueeze(-1)
 
-        # [batch_size, seq_len + 1, 2 * state_rnn_embedding + num_actions + 1]
-        sequence = torch.cat([state_seq, action_seq, next_state_seq, reward_seq], dim=-1)
+        if self.full_sequence:
+            # [batch_size, seq_len + 1, 2 * state_rnn_embedding + num_actions + 1]
+            sequence = torch.cat([state_seq, action_seq, next_state_seq, reward_seq], dim=-1)
+        else:
+            # [batch_size, seq_len, state_rnn_embedding + num_actions]
+            sequence = torch.cat([action_seq, next_state_seq], dim=-1)
+
         # [batch_size, seq_len + 1, hidden_dim]
         sequence = self.embed_transition(sequence)
 

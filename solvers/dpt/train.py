@@ -1,61 +1,37 @@
-import os
-import yaml
 import torch
 from torch.nn import functional as F
 import lightning as L
 
 try:
     from model import DPT_K2D
-    from model_bo import DPT_K2D
     from utils.schedule import cosine_annealing_with_warmup
 except ImportError:
     from .model import DPT_K2D
-    from .model_bo import DPT_K2D
     from .utils.schedule import cosine_annealing_with_warmup
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# def set_seed(seed: int):
-#     os.environ["PYTHONHASHSEED"] = str(seed)
-#     np.random.seed(seed)
-#     random.seed(seed)
-#     torch.manual_seed(seed)
-
-def load_config(config_path):
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f'Config file not found: {config_path}')
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
-
 class DPTSolver(L.LightningModule):
-    def __init__(self, config_path):
+    def __init__(self, config):
         super().__init__()
-        self.config = load_config(config_path)['TrainConfig']
+        self.config = config
         self.model = DPT_K2D(**self.config["model_params"]).to(device)
         self.save_hyperparameters()
 
-    def get_action(self, logits):
-        temp = self.config["temperature"]
-        if temp <= 0:
-            temp = 1.0
-        probs = F.softmax(logits / temp, dim=-1)
-        if not self.training and self.config["do_samples"]:
+    def get_action(self, logits, do_sample=False, temperature=1.0):
+        # if not self.training and self.config["do_samples"]:
+        #     temperature = self.config["temperature"]
+        #     if temperature <= 0:
+        #         temperature = 1.0
+        if do_sample and temperature > 0:
+            probs = F.softmax(logits / temperature, dim=-1)
             action = torch.multinomial(probs, num_samples=1).squeeze(1)
         else:
-            action = torch.argmax(probs, dim=-1)
+            action = torch.argmax(logits, dim=-1)
         return action
 
     def get_loss(self, logits, target_action):
-        """
-        if training:
-            logits:        torch.Tensor # [batch_size, n_steps, num_actions]
-            target_action: torch.Tensor # [batch_size]
-        if test:
-            logits:        torch.Tensor # [batch_size, num_actions]
-            target_action: torch.Tensor # [batch_size]
-        """
         if logits.ndim == 3:
             input = logits.transpose(1, 2)
             target = target_action.repeat(input.shape[-1], 1).transpose(0, 1)
@@ -65,9 +41,10 @@ class DPTSolver(L.LightningModule):
         loss = F.cross_entropy(input, target, label_smoothing=self.config["label_smoothing"])
         return loss
     
-    def get_accuracy(self, logits, target_action):
+    def get_accuracy(self, logits, target_action, action=None):
         with torch.no_grad():
-            action = self.get_action(logits)
+            if action == None:
+                action = self.get_action(logits)
             target = target_action[:, None] if action.ndim == 2 else target_action
             accuracy = (action == target).to(torch.float).mean()
         return accuracy
@@ -89,7 +66,11 @@ class DPTSolver(L.LightningModule):
         loss = []
         accuracy = []
         for sample in batch:
-            sample_loss, sample_accuracy = self.run(**sample).values()
+            sample_loss, sample_accuracy = self.run(
+                **sample,
+                n_steps=self.config["model_params"]["seq_len"], 
+                return_trajectory=False
+            ).values()
             loss.append(sample_loss)
             accuracy.append(sample_accuracy)
         loss = torch.tensor(loss).mean()
@@ -117,16 +98,14 @@ class DPTSolver(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
-            params=self.model.parameters(),
-            lr=self.config["learning_rate"],
-            weight_decay=self.config["weight_decay"],
-            betas=self.config["betas"],
+            params=self.model.parameters(), 
+            **self.config["optimizer_params"]
         )
         if self.config["with_scheduler"]:
             scheduler = cosine_annealing_with_warmup(
                 optimizer=optimizer,
-                warmup_epochs=self.config["warmup_epochs"],
                 total_epochs=self.config["max_epochs"],
+                **self.config["scheduler_params"]
             )
             return {"optimizer": optimizer, "lr_scheduler": scheduler}
         return optimizer
@@ -135,7 +114,8 @@ class DPTSolver(L.LightningModule):
             self, query_state, 
             transition_function, reward_function, 
             target_action=None, n_steps=10,
-            return_trajectory=False
+            return_trajectory=False,
+            temperature_function=lambda x: 1.0
         ):
         """
         query_state:    torch.Tensor # [num_states],
@@ -166,7 +146,7 @@ class DPTSolver(L.LightningModule):
         # [1, 0]
         rewards = torch.Tensor(1, 0).to(dtype=torch.float, device=device)
         
-        for _ in range(n_steps):
+        for n_step in range(n_steps):
             # [1, num_actions]
             predicted_logits = self.model(
                 query_state=query_state,
@@ -176,7 +156,7 @@ class DPTSolver(L.LightningModule):
                 context_rewards=rewards,
             )
             # [1]
-            predicted_action = self.get_action(predicted_logits)
+            predicted_action = self.get_action(predicted_logits, do_sample=True, temperature=temperature_function(n_step))
             # [1, num_states]
             state = transition_function(
                 query_state.cpu(), predicted_action.cpu()
@@ -207,14 +187,14 @@ class DPTSolver(L.LightningModule):
                 "logits": logits.cpu()[0],
                 "actions": actions.cpu()[0],
                 "next_states": next_states.cpu()[0],
-                "rewards": rewards.cpu()[0],
+                "rewards": rewards.cpu()[0]
             }
 
         if target_action is not None:
+            result |= {"target_action": target_action}
             target_action = target_action.to(device).unsqueeze(0)
             loss = self.get_loss(logits, target_action)
-            accuracy = (actions == target_action[:, None]).to(torch.float).mean()
-            # accuracy = self.get_accuracy(logits, target_action)
+            accuracy = self.get_accuracy(logits, target_action, action=actions)
             result |= {"loss": loss, "accuracy": accuracy}
 
         return result

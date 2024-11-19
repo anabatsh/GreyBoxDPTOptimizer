@@ -1,60 +1,44 @@
-TrainConfig:
-    wandb_params:
-        project: "GreyBoxDPT"
-        group: "markoviann"
-        name: null
-        entity: null
-        save_dir: "../GreyBoxDPTOptimizerData/"
+wandb_params:
+    project: "GreyBoxDPTOptimizer"
+    group: "markoviann"
+    name: null
+    entity: null
+    save_dir: "../GreyBoxDPTOptimizerData/"
 
-    model_params:
-        num_states: 1    # CUSTOM
-        num_actions: 16  # CUSTOM
-        hidden_dim: 128
-        num_layers: 4
-        num_heads: 4
-        seq_len: 50
-        attention_dropout: 0.5
-        residual_dropout: 0.1
-        embedding_dropout: 0.3
-        normalize_qk: False
-        pre_norm: True
-        state_rnn_embedding: 1
+model_params:
+    num_states: 1
+    num_actions: 16
+    hidden_dim: 128
+    num_layers: 4
+    num_heads: 4
+    seq_len: 50
+    attention_dropout: 0.5
+    residual_dropout: 0.1
+    embedding_dropout: 0.3
+    normalize_qk: False
+    pre_norm: True
+    state_rnn_embedding: 1
+    full_sequence: false
 
-    # training params
-    learning_rate: 0.0005
-    warmup_ratio: 0.05
-    betas: [0.9, 0.999]
+optimizer_params:
+    lr: 0.0005
     weight_decay: 0.0001
-    clip_grad: null
-    batch_size: 32 # 512
-    update_steps: 20000 #125000
-    max_epochs: 3 #300
-    num_workers: 0
+    betas: [0.9, 0.999]
+
+with_scheduler: false
+scheduler_params:
     warmup_epochs: 2
-    label_smoothing: 0.0
 
-    # evaluation params
-    log_every_n_steps: 1
-    eval_every: 200
-    eval_episodes: 200
-    eval_train_goals: 20
-    eval_test_goals: 50
+# temperature: 100.0
+# do_samples: true
+label_smoothing: 0.0
+precision: "16-mixed"
+max_epochs: 300
+log_every_n_steps: 1
+seed: 42
+# clip_grad: null
 
-    # general params
-    train_histories_path: "../GreyBoxDPTOptimizerData/trajectories_test"
-    test_histories_path: "../GreyBoxDPTOptimizerData/trajectories_test"
-    checkpoints_path: "../GreyBoxDPTOptimizerData/checkpoints"
-    train_seed: 42
-    data_seed: 0
-    eval_seed: 42
-
-    rnn_hidden: 1
-    rnn_dropout: 0.0
-    subsample: 1
-
-    with_scheduler: false
-    with_prior: false
-    with_key_indicator: true
-
-    do_samples: true
-    temperature: 0.9
+train_histories_path: "../GreyBoxDPTOptimizerData/trajectories"
+val_histories_path: "../GreyBoxDPTOptimizerData/trajectories_test"
+batch_size: 512
+num_workers: 8
