@@ -1,3 +1,15 @@
+### Decision Pretrained Transformer
+
+To run DPT one simply needs execute the following command:
+
+````bash
+python dpt_run.py
+````
+
+To find all modules connected to DPT go to `solvers.dpt`. All the needed configurations are in the file `dpt_run_config.yaml`.
+
+---
+
 ### Grey Box
 
 A repo for solving **Integer Nonlinear Optimization** problems:
@@ -122,27 +134,3 @@ bash run.sh i
 Default `run.sh` implies optimizing the problem `Net` with some predefined solvers, namely `OnePlusOne`, `PSO`, `NoisyBandit`, `SPSA`, and `Portfolio` from the `nevergrad` framework. Here, `i` is a random seed that serves as an additional parameter of the prticular problem `Net`. 
 
 Note that the default `run.sh` file already contains all the benchmarks and calls to visualization functions. One can duplicate it to set another problem or set of hyperparameters.
-
----
-### Decision Pretrained Transformer
-
-First, check out the `dpt.ipynb` notebook which has all functions to run and test the transformer.
-
-To run DPT from terminal one simply needs execute the following command:
-
-````bash
-bash dpt_run.sh
-````
-
-Thus, two steps are performed: 
-
-1. The file `run.sh` is run $n_{seeds}$ times with different seeds `i`, creating $n_{seeds} \times n_{solvers} \times n_{runs}$ optimization trajectories of the selected solvers and saving them to `save_dir/`.
-2. The file `train_dpt.py` from `solvers.dpt` is called to pretrain a decision transformer on the obtained dataset of optimization trajectories. Configs of the pretrained model are stored in `solvers/dpt/checkpoints.`
-
-If there already are some optimization trajectories which we want to train the dpt on, simply run
-
-```bash
-python3 solvers/dpt/train_dpt.py
-```
-
-In order to load a DPT from a config and test it on a problem, please, use corresponding code from  `dpt.ipynb` since there is no special bush runner for that yet.
