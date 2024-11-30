@@ -1,4 +1,3 @@
-# from solvers.dpt.utils.data import results2trajectories
 import os
 import yaml
 import torch
@@ -8,10 +7,10 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
 
 from solvers.dpt.train import DPTSolver
-from solvers.dpt.utils.data import MarkovianDataset, MarkovianOfflineDataset
+from solvers.dpt.utils.data import MarkovianOfflineDataset, MarkovianOnlineDataset
 
-from problems import Net
 from utils import *
+import problems as p
 
 os.environ['WANDB_SILENT'] = "true"
 
@@ -23,7 +22,7 @@ def results2trajectories(
     ):
 
     if not os.path.exists(save_dir):
-        os.mkdir(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
 
     for problem in os.listdir(read_dir):
         problem_dir = os.path.join(read_dir, problem)
@@ -62,10 +61,33 @@ def results2trajectories(
                     history = {
                         "states": np.roll(states, 1).reshape(-1, 1),
                         "actions": actions,
-                        "reward": (states - np.roll(states, 1))[:, 0],
+                        "rewards": (states - np.roll(states, 1)),
                         "target_actions": np.array([ground_truth] * n)
                     }
                     np.savez(f'{save_dir}/{problem}_{solver}_{seed}', **history, allow_pickle=True)
+
+def problems2trajectories(
+        problems=[],
+        save_dir='trajectories', 
+    ):
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+
+    for problem in problems:
+        base = problem.n ** np.arange(problem.d)[::-1]
+        all_actions = get_xaxis(d=problem.d, n=problem.n)
+        all_states = problem.target(all_actions)
+        all_actions = all_actions @ base
+        target_action = all_actions[np.argmin(all_states)]
+        n = len(all_actions)
+        history = {
+            "states": np.roll(all_states, 1).reshape(-1, 1),
+            "actions": all_actions,
+            "rewards": (all_states - np.roll(all_states, 1)),
+            "target_actions": np.array([target_action] * n)
+        }
+        np.savez(f'{save_dir}/{problem.name}', **history, allow_pickle=True)
 
 def load_config(config_path):
     if not os.path.exists(config_path):
@@ -102,37 +124,43 @@ def transition_function(state, action, problem):
 def reward_function(states, actions, next_states, problem):
     return (states - next_states)[:, -1, 0]
 
-def get_offline_dataloader(histories_path, config):
-    dataset = MarkovianDataset(histories_path, seq_len=config["model_params"]["seq_len"])
-    dataloader = DataLoader(dataset=dataset, batch_size=config["batch_size"], num_workers=config["num_workers"])
-    return dataloader
+def get_dataloaders(config):
+    # get the problems
+    problem_class = getattr(p, config["problem"])
+    problems = [problem_class(**config["problem_params"], seed=i) for i in range(config["n_problems"])]
 
-def get_online_dataloader(problems, config):
-    query_states, target_actions = get_query_states_and_target_actions(problems, config)
-    dataset = MarkovianOfflineDataset(
-        problems, query_states, transition_function, 
-        reward_function, target_actions
+    # get trajectories if there is none
+    trajectories_path = config["trajectories_path"] # os.path.join(config["trajectories_path"], config["problem"])
+    if not os.path.exists(trajectories_path):
+        problems2trajectories(problems=problems, save_dir=trajectories_path)
+
+    # get an offline train and validation dataloaders
+    offline_dataset = MarkovianOfflineDataset(trajectories_path, seq_len=config["model_params"]["seq_len"], ordered=config["ordered"])
+    train_offline_dataset, val_offline_dataset = torch.utils.data.random_split(offline_dataset, [0.8, 0.2])
+    train_offline_dataloader = DataLoader(
+        dataset=train_offline_dataset, batch_size=config["batch_size"], 
+        shuffle=True, num_workers=config["num_workers"], pin_memory=True
     )
-    dataloader = DataLoader(dataset=dataset, batch_size=1, num_workers=config["num_workers"], collate_fn=lambda batch: batch)
-    return dataloader
+    val_offline_dataloader = DataLoader(
+        dataset=val_offline_dataset, batch_size=config["batch_size"], 
+        shuffle=True, num_workers=config["num_workers"], pin_memory=True
+    )
+    print('train_offline_dataset:', len(train_offline_dataset))
+    print('val_offline_dataset:', len(val_offline_dataset))
+
+    # # get an online validation dataloader
+    # val_problems = [problems[i] for i in val_offline_dataset.indices]
+    # query_states, target_actions = get_query_states_and_target_actions(val_problems, config)
+    # val_online_dataset = MarkovianOnlineDataset(val_problems, query_states, transition_function, reward_function, target_actions)
+    # val_online_dataloader = DataLoader(dataset=val_online_dataset, batch_size=1, num_workers=config["num_workers"], collate_fn=lambda batch: batch)
+    # print('val_online_dataset:', len(val_online_dataset))
+
+    return {
+        'train_dataloaders': train_offline_dataloader, 
+        'val_dataloaders': [val_offline_dataloader]#, val_online_dataloader]
+    }
 
 def train(config):
-    # results2trajectories(
-    #     read_dir='../GreyBoxDPTOptimizerData/results_test', 
-    #     save_dir='../GreyBoxDPTOptimizerData/trajectories_test', 
-    # )
-
-    train_offline_dataloader = get_offline_dataloader(config["train_histories_path"], config)
-    val_offline_dataloader = get_offline_dataloader(config["val_histories_path"], config)
-    print('train_offline_dataloader:', len(train_offline_dataloader.dataset))
-    print('val_offline_dataloader:', len(val_offline_dataloader.dataset))
-
-    d = int(np.log2(config["model_params"]["num_actions"]))
-    val_online_dataloader_1 = get_online_dataloader([Net(d=d, n=2, seed=i) for i in range(271, 281)], config)
-    val_online_dataloader_2 = get_online_dataloader([Net(d=d, n=2, seed=i) for i in range(1, 11)], config)
-    print('val_online_dataloader_1:', len(val_online_dataloader_1.dataset))
-    print('val_online_dataloader_2:', len(val_online_dataloader_2.dataset))
-
     logger = WandbLogger(**config["wandb_params"])
     model = DPTSolver(config)
     
@@ -145,14 +173,10 @@ def train(config):
         enable_model_summary=False
         # deterministic=True
     )
-    trainer.fit(
-        model=model, 
-        train_dataloaders=train_offline_dataloader, 
-        val_dataloaders=[val_offline_dataloader, val_online_dataloader_1, val_online_dataloader_2]
-    )
+    trainer.fit(model=model, **get_dataloaders(config))
     # trainer.test(model, dataloaders=test_dataloader)
 
 if __name__ == '__main__':
-    config = load_config('config.yaml')
-    seed_everything(config["seed"], workers=True)
+    config = load_config('dpt_run_config.yaml')
+    # seed_everything(config["seed"], workers=True)
     train(config)

@@ -20,10 +20,6 @@ class DPTSolver(L.LightningModule):
         self.save_hyperparameters()
 
     def get_action(self, logits, do_sample=False, temperature=1.0):
-        # if not self.training and self.config["do_samples"]:
-        #     temperature = self.config["temperature"]
-        #     if temperature <= 0:
-        #         temperature = 1.0
         if do_sample and temperature > 0:
             probs = F.softmax(logits / temperature, dim=-1)
             action = torch.multinomial(probs, num_samples=1).squeeze(1)
@@ -34,7 +30,7 @@ class DPTSolver(L.LightningModule):
     def get_loss(self, logits, target_action):
         if logits.ndim == 3:
             input = logits.transpose(1, 2)
-            target = target_action.repeat(input.shape[-1], 1).transpose(0, 1)
+            target = target_action[:, None].repeat(1, input.shape[-1])
         else:
             input = logits
             target = target_action
@@ -124,10 +120,11 @@ class DPTSolver(L.LightningModule):
             action:     torch.Tensor # [1]
             new_state:  torch.Tensor # [num_states]
         reward_function: (states, actions, next_states) -> reward
-            states:     torch.Tensor  # [n_steps, num_states]
-            actions:    torch.Tensor  # [n_steps]
-            new_states: torch.Tensor  # [n_steps, num_states]
-            reward:     torch.Tensor  # [1]
+            states:     torch.Tensor # [n_steps, num_states]
+            actions:    torch.Tensor # [n_steps]
+            new_states: torch.Tensor # [n_steps, num_states]
+            reward:     torch.Tensor # [1]
+        target_action:  torch.Tensor # []
         """
         num_actions = self.config["model_params"]["num_actions"]
         num_states = self.config["model_params"]["num_states"]
@@ -145,7 +142,7 @@ class DPTSolver(L.LightningModule):
         actions = torch.Tensor(1, 0).to(dtype=torch.long, device=device)
         # [1, 0]
         rewards = torch.Tensor(1, 0).to(dtype=torch.float, device=device)
-        
+
         for n_step in range(n_steps):
             # [1, num_actions]
             predicted_logits = self.model(
@@ -191,10 +188,11 @@ class DPTSolver(L.LightningModule):
             }
 
         if target_action is not None:
-            result |= {"target_action": target_action}
             target_action = target_action.to(device).unsqueeze(0)
             loss = self.get_loss(logits, target_action)
             accuracy = self.get_accuracy(logits, target_action, action=actions)
             result |= {"loss": loss, "accuracy": accuracy}
+            if return_trajectory:
+                result |= {"target_action": target_action.cpu()[0]}
 
         return result

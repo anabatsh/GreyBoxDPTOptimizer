@@ -21,16 +21,17 @@ def load_markovian_learning_histories(path: str):
             )
     return learning_histories
 
-class MarkovianDataset(Dataset):
+class MarkovianOfflineDataset(Dataset):
     """
     A dataset class that shuffles the learning histories for dpt training
     a query_state and respective target action for it is sampled from the same
     learning history (to ensure it is related to the same goal with the context) but
     is not related to contextual samples (as in original implementation).
     """
-    def __init__(self, data_path: str, seq_len: int = 60):
+    def __init__(self, data_path: str, seq_len: int = 60, ordered: bool = False):
         super().__init__()
         self.seq_len = seq_len
+        self.ordered = ordered
         self.histories = load_markovian_learning_histories(data_path)
 
     def __len__(self):
@@ -45,8 +46,12 @@ class MarkovianDataset(Dataset):
             history["rewards"].shape[0] ==
             history["target_actions"].shape[0]
         )
-        context_indexes = np.random.randint(0, history_len - 1, size=self.seq_len)
+        context_indexes = np.random.choice(history_len-1, size=self.seq_len, replace=self.seq_len>(history_len-1))
+        if self.ordered:
+            context_indexes = np.sort(context_indexes)
         query_idx = np.random.randint(0, history_len - 1)
+        # if index == 0:
+        #     print(query_idx, context_indexes)
         return {
             "query_state": torch.tensor(history["states"][query_idx]).to(torch.float),
             "states": torch.tensor(history["states"][context_indexes]).to(torch.float), 
@@ -56,7 +61,7 @@ class MarkovianDataset(Dataset):
             "target_action": torch.tensor(history["target_actions"][query_idx]).to(torch.long)
         }
 
-class MarkovianOfflineDataset(Dataset):
+class MarkovianOnlineDataset(Dataset):
     """
     """
     def __init__(

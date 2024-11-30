@@ -108,17 +108,17 @@ class DPT_K2D(nn.Module):
         # [batch_size, seq_len, num_actions]
         context_actions_emb = F.one_hot(context_actions, num_classes=self.num_actions)
 
-        if self.training:
-            # [batch_size, seq_len]
-            shuffle_idx = torch.randint(low=0, high=self.seq_len, size=(self.seq_len,))
-            # [batch_size, seq_len, state_rnn_embedding]
-            context_states_emb = context_states_emb[:, shuffle_idx]
-            # [batch_size, seq_len, state_rnn_embedding]
-            context_next_states_emb = context_next_states_emb[:, shuffle_idx]
-            # [batch_size, seq_len, num_actions]
-            context_actions_emb = context_actions_emb[:, shuffle_idx]
-            # [batch_size, seq_len]
-            context_rewards = context_rewards[:, shuffle_idx]
+        # if self.training:
+        #     # [batch_size, seq_len]
+        #     shuffle_idx = torch.randperm(self.seq_len)
+        #     # [batch_size, seq_len, state_rnn_embedding]
+        #     context_states_emb = context_states_emb[:, shuffle_idx]
+        #     # [batch_size, seq_len, state_rnn_embedding]
+        #     context_next_states_emb = context_next_states_emb[:, shuffle_idx]
+        #     # [batch_size, seq_len, num_actions]
+        #     context_actions_emb = context_actions_emb[:, shuffle_idx]
+        #     # [batch_size, seq_len]
+        #     context_rewards = context_rewards[:, shuffle_idx]
 
         # [batch_size, seq_len + 1, state_rnn_embedding]
         state_seq = torch.cat([query_state_emb, context_states_emb], dim=1)

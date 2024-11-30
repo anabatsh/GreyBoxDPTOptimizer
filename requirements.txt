@@ -1,8 +1,7 @@
 tqdm
-dataclasses
-# gymnasium
+# dataclasses
 numpy
-pyrallis
+# pyrallis
 wandb
 matplotlib
 torch
@@ -15,3 +14,5 @@ bayesian-optimization
 scikit-learn
 nevergrad
 optax==0.1.7
+zuko
+torchdiffeq

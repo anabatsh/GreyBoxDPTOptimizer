@@ -23,14 +23,17 @@ def int2bin(x, d, n):
     i = np.array(i)[::-1].T
     return i
 
-def get_xaxis(d, n, n_max=1024):
+def get_xaxis(d, n, len_max=1024):
     """
     For given d and n list all the vectors [{1, n}]^d
-    *if there's too many, list only n_max of them with equal step
+    *if there's too many, list only len_max of them with equal step
     input: d, n - integer
     input: i - either all or a part of the vectors [{1, n}]^d
     """
-    d_new = min(d, int(np.emath.logn(n, n_max)))
+    if d == 1:
+        i = np.linspace(0, n-1, len_max).astype(np.int32).reshape(-1, 1)
+        return i
+    d_new = min(d, int(np.emath.logn(n, len_max)))
     x = np.arange(0, n ** d_new)
     i = int2bin(x, d_new, n)
     if d_new < d:
