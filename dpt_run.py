@@ -57,12 +57,12 @@ def results2trajectories(
                     states = np.array(targets)
                     ground_truth = actions[np.argmin(states)]
 
-                    n = len(r)
+                    states = np.hstack([np.zeros(1), states])
                     history = {
-                        "states": np.roll(states, 1).reshape(-1, 1),
+                        "states": states.reshape(-1, 1),
                         "actions": actions,
-                        "rewards": (states - np.roll(states, 1)),
-                        "target_actions": np.array([ground_truth] * n)
+                        "rewards": -1 * (states[1:] - states[:-1]),
+                        "target_actions": np.array([ground_truth] * len(r))
                     }
                     np.savez(f'{save_dir}/{problem}_{solver}_{seed}', **history, allow_pickle=True)
 
@@ -70,7 +70,6 @@ def problems2trajectories(
         problems=[],
         save_dir='trajectories', 
     ):
-
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
 
@@ -80,12 +79,12 @@ def problems2trajectories(
         all_states = problem.target(all_actions)
         all_actions = all_actions @ base
         target_action = all_actions[np.argmin(all_states)]
-        n = len(all_actions)
+        states = np.hstack([np.zeros(1), all_states])
         history = {
-            "states": np.roll(all_states, 1).reshape(-1, 1),
+            "states": states.reshape(-1, 1),
             "actions": all_actions,
-            "rewards": (all_states - np.roll(all_states, 1)),
-            "target_actions": np.array([target_action] * n)
+            "rewards": -1 * (states[1:] - states[:-1]),
+            "target_actions": np.array([target_action] * len(all_actions))
         }
         np.savez(f'{save_dir}/{problem.name}', **history, allow_pickle=True)
 
@@ -130,12 +129,14 @@ def get_dataloaders(config):
     problems = [problem_class(**config["problem_params"], seed=i) for i in range(config["n_problems"])]
 
     # get trajectories if there is none
-    trajectories_path = config["trajectories_path"] # os.path.join(config["trajectories_path"], config["problem"])
-    if not os.path.exists(trajectories_path):
-        problems2trajectories(problems=problems, save_dir=trajectories_path)
+    if not os.path.exists(config["trajectories_path"]):
+        if "results_path" in config and os.path.exists(config["results_path"]):
+            results2trajectories(read_dir=config["results_path"], save_dir=config["trajectories_path"])
+        else:
+            problems2trajectories(problems=problems, save_dir=config["trajectories_path"])
 
     # get an offline train and validation dataloaders
-    offline_dataset = MarkovianOfflineDataset(trajectories_path, seq_len=config["model_params"]["seq_len"], ordered=config["ordered"])
+    offline_dataset = MarkovianOfflineDataset(config["trajectories_path"], seq_len=config["model_params"]["seq_len"], ordered=config["ordered"])
     train_offline_dataset, val_offline_dataset = torch.utils.data.random_split(offline_dataset, [0.8, 0.2])
     train_offline_dataloader = DataLoader(
         dataset=train_offline_dataset, batch_size=config["batch_size"], 

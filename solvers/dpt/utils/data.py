@@ -39,25 +39,28 @@ class MarkovianOfflineDataset(Dataset):
     
     def __getitem__(self, index: int):
         history = self.histories[index]
-        history_len = history["states"].shape[0]
+        history_len = history["states"].shape[0] - 1
         assert (
-            history["states"].shape[0] ==
+            history_len ==
             history["actions"].shape[0] == 
             history["rewards"].shape[0] ==
             history["target_actions"].shape[0]
         )
-        context_indexes = np.random.choice(history_len-1, size=self.seq_len, replace=self.seq_len>(history_len-1))
+        context_indexes = np.random.choice(history_len, size=self.seq_len, replace=self.seq_len>history_len)
+        query_idx = np.random.choice(history_len)
+        context_indexes[0] = history["target_actions"][0]
+        context_indexes[10] = history["target_actions"][0]
+        context_indexes[20] = history["target_actions"][0]
+        context_indexes[30] = history["target_actions"][0]
         if self.ordered:
-            context_indexes = np.sort(context_indexes)
-        query_idx = np.random.randint(0, history_len - 1)
-        # if index == 0:
-        #     print(query_idx, context_indexes)
+            sort_indexes = np.argsort(history["states"][context_indexes + 1], axis=0)[::-1]
+            context_indexes = context_indexes[sort_indexes]
         return {
             "query_state": torch.tensor(history["states"][query_idx]).to(torch.float),
             "states": torch.tensor(history["states"][context_indexes]).to(torch.float), 
             "actions": torch.tensor(history["actions"][context_indexes]).to(torch.long),
             "next_states": torch.tensor(history["states"][context_indexes + 1]).to(torch.float),
-            "rewards": torch.tensor(history["actions"][context_indexes]).to(torch.float),
+            "rewards": torch.tensor(history["rewards"][context_indexes]).to(torch.float),
             "target_action": torch.tensor(history["target_actions"][query_idx]).to(torch.long)
         }
 

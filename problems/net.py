@@ -4,7 +4,45 @@ import torch.nn as nn
 from .base import Problem
 
 
-class Net(Problem):
+class ReLUNet(Problem):
+    """
+    Optimization problem that has a simple ReLU 
+    neural network as a target and constraints function.
+    """
+    def __init__(self, d=10, n=2, seed=0):
+        """
+        Additional Input:
+            seed - random seed to determine the nets (int)
+            q - rate of the points satisfying the constraints (float in [0, 1])
+        """
+        super().__init__(d, n)
+        torch.manual_seed(seed)
+
+        width = 2 * d
+        self.f = nn.Sequential(
+            nn.Linear(d, width), nn.ReLU(),
+            # nn.Linear(width, width), nn.ReLU(),
+            # nn.Linear(width, width), nn.ReLU(),
+            nn.Linear(width, 1)
+        )
+        # depth = 4
+        # hidden_dims = [d] + [width] * depth + [1]
+        # self.f = nn.ModuleList()
+        # for i in range(len(hidden_dims) - 1):
+        #     self.f.append(nn.Linear(hidden_dims[i], hidden_dims[i+1]))
+        #     self.f.append(nn.ReLU())
+        # self.f.append(nn.Linear(hidden_dims[-1], 1))
+        self.name = f'ReLUNet_{seed}'
+
+    def target(self, i):
+        x = torch.tensor(np.array(i)).to(torch.float32).reshape(-1, self.d)
+        y = self.f(x).flatten().detach().numpy()
+        return y
+    
+    def constraints(self, i):
+        return torch.ones(i.shape[0]).to(torch.bool)
+    
+class ConvNet(Problem):
     """
     Optimization problem that has a simple convolutional 
     neural network as a target and constraints function.
@@ -29,7 +67,7 @@ class Net(Problem):
             nn.Sigmoid()
         )
         self.q = q
-        self.name = f'Net_{seed}'
+        self.name = f'ConvNet_{seed}'
 
     def target(self, i):
         x = torch.tensor(np.array(i)).to(torch.float32).reshape(-1, 1, self.d)
