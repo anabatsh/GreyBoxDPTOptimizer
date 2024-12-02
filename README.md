@@ -1,3 +1,15 @@
+### Decision Pretrained Transformer
+
+To run DPT one simply needs execute the following command:
+
+````bash
+python dpt_run.py
+````
+
+To find all modules connected to DPT go to `solvers.dpt`. All the needed configurations are in the file `dpt_run_config.yaml`.
+
+---
+
 ### Grey Box
 
 A repo for solving **Integer Nonlinear Optimization** problems:
