@@ -11,7 +11,7 @@ model_params:
     hidden_dim: 64
     num_layers: 4
     num_heads: 2
-    seq_len: 200
+    seq_len: 100
     attention_dropout: 0.5
     residual_dropout: 0.1
     embedding_dropout: 0.3
@@ -25,26 +25,30 @@ optimizer_params:
     weight_decay: 0.0001
     betas: [0.9, 0.999]
 
+remove_target: true
+ordered: true
+
 with_scheduler: false
 scheduler_params:
     warmup_epochs: 2
 
 label_smoothing: 0.0
 precision: "16-mixed"
-max_epochs: 1000
+max_epochs: 600
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
 # temperature: 100.0
 # do_samples: true
 
-# trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Net_d_2_n_4_solvers"
-trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Quadratic_d_1_n_1024"
-# results_path: "../GreyBoxDPTOptimizerData/results"
-n_problems: 1000
-ordered: false
+# trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Net_n_2_d_4_solvers"
+# trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Net_n_2_d_8_grid"
+# trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Net_n_2_d_10_grid"
+# trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/SimpleQuadratic_n_1024_d_1"
+trajectories_path: "../GreyBoxDPTOptimizerData/trajectories/Quadratic_n_1024_d_1"
+n_problems: 281
 
-batch_size: 512
+batch_size: 128
 num_workers: 8
 
 problem: "Quadratic"

@@ -77,7 +77,7 @@ def problems2trajectories(
         base = problem.n ** np.arange(problem.d)[::-1]
         all_actions = get_xaxis(d=problem.d, n=problem.n)
         all_states = problem.target(all_actions)
-        all_actions = all_actions @ base
+        all_actions = all_actions @ base 
         target_action = all_actions[np.argmin(all_states)]
         states = np.hstack([np.zeros(1), all_states])
         history = {
@@ -136,7 +136,7 @@ def get_dataloaders(config):
             problems2trajectories(problems=problems, save_dir=config["trajectories_path"])
 
     # get an offline train and validation dataloaders
-    offline_dataset = MarkovianOfflineDataset(config["trajectories_path"], seq_len=config["model_params"]["seq_len"], ordered=config["ordered"])
+    offline_dataset = MarkovianOfflineDataset(config["trajectories_path"], seq_len=config["model_params"]["seq_len"], ordered=config["ordered"], remove_target=config["remove_target"])
     train_offline_dataset, val_offline_dataset = torch.utils.data.random_split(offline_dataset, [0.8, 0.2])
     train_offline_dataloader = DataLoader(
         dataset=train_offline_dataset, batch_size=config["batch_size"], 

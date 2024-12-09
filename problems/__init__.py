@@ -1,2 +1,2 @@
 from .net import ReLUNet, ConvNet
-from .quadratic import Quadratic
+from .quadratic import Quadratic, SimpleQuadratic

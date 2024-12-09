@@ -16,7 +16,8 @@ def load_markovian_learning_histories(path: str):
                     "states": f["states"],
                     "actions": f["actions"],
                     "rewards": f["rewards"],
-                    "target_actions": f["target_actions"]
+                    "target_actions": f["target_actions"],
+                    "name": os.path.basename(filename)[:-4]
                 }
             )
     return learning_histories
@@ -28,9 +29,10 @@ class MarkovianOfflineDataset(Dataset):
     learning history (to ensure it is related to the same goal with the context) but
     is not related to contextual samples (as in original implementation).
     """
-    def __init__(self, data_path: str, seq_len: int = 60, ordered: bool = False):
+    def __init__(self, data_path: str, seq_len: int = 60, ordered: bool = False, remove_target: bool = False):
         super().__init__()
         self.seq_len = seq_len
+        self.remove_target = remove_target
         self.ordered = ordered
         self.histories = load_markovian_learning_histories(data_path)
 
@@ -46,22 +48,26 @@ class MarkovianOfflineDataset(Dataset):
             history["rewards"].shape[0] ==
             history["target_actions"].shape[0]
         )
-        context_indexes = np.random.choice(history_len, size=self.seq_len, replace=self.seq_len>history_len)
         query_idx = np.random.choice(history_len)
-        context_indexes[0] = history["target_actions"][0]
-        context_indexes[10] = history["target_actions"][0]
-        context_indexes[20] = history["target_actions"][0]
-        context_indexes[30] = history["target_actions"][0]
+        if self.remove_target:
+            a = np.hstack([np.arange(history_len)[:query_idx], np.arange(history_len)[query_idx+1:]])
+        else:
+            a = np.arange(history_len)
+        context_indexes = np.random.choice(a, size=self.seq_len, replace=self.seq_len>history_len)
+
         if self.ordered:
-            sort_indexes = np.argsort(history["states"][context_indexes + 1], axis=0)[::-1]
+            sort_indexes = np.argsort(history["states"][context_indexes + 1][:, 0], axis=0)[::-1]
             context_indexes = context_indexes[sort_indexes]
+
         return {
             "query_state": torch.tensor(history["states"][query_idx]).to(torch.float),
             "states": torch.tensor(history["states"][context_indexes]).to(torch.float), 
+            # "actions": torch.tensor(history["actions"][context_indexes] / 1023).to(torch.float),
             "actions": torch.tensor(history["actions"][context_indexes]).to(torch.long),
             "next_states": torch.tensor(history["states"][context_indexes + 1]).to(torch.float),
             "rewards": torch.tensor(history["rewards"][context_indexes]).to(torch.float),
-            "target_action": torch.tensor(history["target_actions"][query_idx]).to(torch.long)
+            "target_action": torch.tensor(history["target_actions"][query_idx]).to(torch.long),
+            "name": history["name"]
         }
 
 class MarkovianOnlineDataset(Dataset):
