@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import os
 import json
 import matplotlib.pyplot as plt
@@ -20,7 +21,10 @@ def int2bin(x, d, n):
     for _ in range(d):
         i.append(x % n)
         x = x // n
-    i = np.array(i)[::-1].T
+    if isinstance(x, torch.Tensor):
+        i = torch.stack(i).T.flip(-1)
+    else:
+        i = np.array(i)[::-1].T
     return i
 
 def get_xaxis(d, n, len_max=1024):
@@ -41,7 +45,7 @@ def get_xaxis(d, n, len_max=1024):
         i = np.pad(i, ((0, 1), (0, 0)), constant_values=n-1)
     return i
 
-def show_problem(problem, save_dir=''):
+def show_problem(problem, save_dir='', ax=None, color='red', linestyle='-o'):
     """
     Vizualize a given problem as a 2D plot and save it. 
     For all (or some reasonable amount) of the points from the problem argument space
@@ -57,12 +61,19 @@ def show_problem(problem, save_dir=''):
     c = problem.constraints(i)
     y[~c] = None
 
-    plt.figure(figsize=(8, 4))
-    plt.title('Target Function')
-    plt.plot(y, '-o', markersize=1)
-    plt.xticks([0, len(y)-1], [fr'$[0]^{{{problem.d}}}$', fr'$[{problem.n-1}]^{{{problem.d}}}$'])
-    save_path = os.path.join(save_dir, 'problem.png')
-    plt.savefig(save_path)
+    if ax == None:
+        plt.figure(figsize=(8, 4))
+        ax = plt.gca()
+
+    ax.set_title('Target Function')
+    ax.plot(y, linestyle, c=color, markersize=1)
+    min_index = np.argmin(y)
+    y_axis = ax.get_ylim()
+    ax.vlines(i[min_index], y_axis[0], y[min_index], colors=color)
+    ax.set_ylim(y_axis)
+    ax.set_xticks([0, len(y)-1], [fr'$[0]^{{{problem.d}}}$', fr'$[{problem.n-1}]^{{{problem.d}}}$'])
+    # save_path = os.path.join(save_dir, 'problem.png')
+    # plt.savefig(save_path)
     # plt.show()
 
 def print_trajectory(trajectory, problem):
