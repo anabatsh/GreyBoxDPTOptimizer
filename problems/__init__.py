@@ -1,1 +1,1 @@
-from .quadratic import Quadratic
+from .quadratic import *

@@ -3,9 +3,9 @@ from torch import nn
 from torch.nn import functional as F
 
 try:
-    from utils.nn import TransformerBlock
+    from nn import TransformerBlock
 except ImportError:
-    from .utils.nn import TransformerBlock
+    from .nn import TransformerBlock
 
 
 class DPT(nn.Module):
@@ -13,12 +13,12 @@ class DPT(nn.Module):
         self,
         seq_len: int = 3,
         input_dim: int = 1, # размерность х, размерность y = 1
-        hidden_dim: int = 256,
         output_dim: int = 1,
+        hidden_dim: int = 256,
         num_layers: int = 4,
         num_heads: int = 4,
-        attention_dropout: float = 0.5,
-        residual_dropout: float = 0.0,
+        attention_dropout: float = 0.1,
+        residual_dropout: float = 0.1,
         embedding_dropout: float = 0.1,
     ) -> None:
         super().__init__()
@@ -37,21 +37,30 @@ class DPT(nn.Module):
             )
             for _ in range(num_layers)
         ])
+    #     self.apply(self._init_weights)
+
+    # @staticmethod
+    # def _init_weights(module: nn.Module):
+    #     if isinstance(module, (nn.Linear, nn.Embedding)):
+    #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    #         if isinstance(module, nn.Linear) and module.bias is not None:
+    #             torch.nn.init.zeros_(module.bias)
+    #     elif isinstance(module, nn.LayerNorm):
+    #         torch.nn.init.zeros_(module.bias)
+    #         torch.nn.init.ones_(module.weight)
 
     def forward(
         self,
-        x: torch.Tensor,  # [batch_size, seq_len]
+        x: torch.Tensor,  # [batch_size, seq_len, input_dim]
         y: torch.Tensor,  # [batch_size, seq_len]
     ) -> torch.Tensor:
 
-        assert y.shape[0] == x.shape[0]
-
         # [batch_size, seq_len, input_dim]
-        x_emb = x.unsqueeze(-1)
+        x_emb = x
         # [batch_size, seq_len, 1]
         y_emb = y.unsqueeze(-1)
 
-        # [batch_size, seq_len + 1, 1]
+        # [batch_size, seq_len + 1, input_dim]
         x_seq = torch.cat(
             [
                 torch.zeros(
@@ -76,7 +85,7 @@ class DPT(nn.Module):
             dim=1,
         )
 
-        # [batch_size, seq_len + 1, 1 + 1]
+        # [batch_size, seq_len + 1, input_dim + 1]
         sequence = torch.cat([x_seq, y_seq], dim=-1)
 
         # [batch_size, seq_len + 1, hidden_dim]

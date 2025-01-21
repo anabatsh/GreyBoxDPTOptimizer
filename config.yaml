@@ -8,7 +8,7 @@ wandb_params:
 model_params:
     seq_len: 3
     input_dim: 1
-    hidden_dim: 128
+    hidden_dim: 16
     output_dim: 1
     num_layers: 4
     num_heads: 4
@@ -21,14 +21,10 @@ optimizer_params:
     weight_decay: 0.0001
     betas: [0.9, 0.999]
 
-remove_target: true
-ordered: false
-
 with_scheduler: false
 scheduler_params:
     warmup_epochs: 2
 
-loss: "dynamic"
 label_smoothing: 0.1
 precision: 32
 max_epochs: 200
@@ -43,7 +39,7 @@ n_problems: 5000
 batch_size: 512
 num_workers: 16
 
-problem: "Quadratic"
+problem: "ContinuousQuadratic"
 problem_params:
     d: 1
-    n: 1024
+    n: 1

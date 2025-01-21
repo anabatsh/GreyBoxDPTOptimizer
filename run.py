@@ -4,7 +4,6 @@ import random
 from functools import partial
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
@@ -12,26 +11,13 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import seed_everything
 
 from src.train import DPTSolver
-from src.utils.data import OfflineDataset, OnlineDataset
+from src.data import OfflineDataset, OnlineDataset, custom_collate_fn
 
 from utils import *
 import problems as p
 
 os.environ['WANDB_SILENT'] = "true"
 
-def load_config(config_path):
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f'Config file not found: {config_path}')
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
-
-def collate_problem_fn(batch, *, collate_fn_map):
-    return batch
-
-def custom_collate_fn(batch, problem_class):
-    custom_collate_fn_map = default_collate_fn_map | {problem_class: collate_problem_fn}
-    return collate(batch, collate_fn_map=custom_collate_fn_map)
 
 def get_dataloaders(config):
     # get problems
@@ -47,9 +33,7 @@ def get_dataloaders(config):
     # get an offline train dataloader
     train_offline_dataset = OfflineDataset(
         problems=train_problems,
-        seq_len=config["model_params"]["seq_len"],
-        ordered=config["ordered"],
-        remove_target=config["remove_target"]
+        seq_len=config["model_params"]["seq_len"]
     )
     train_offline_dataloader = DataLoader(
         dataset=train_offline_dataset,
@@ -64,9 +48,7 @@ def get_dataloaders(config):
     # get an offline validation dataloader
     val_offline_dataset = OfflineDataset(
         problems=val_problems,
-        seq_len=config["model_params"]["seq_len"],
-        ordered=config["ordered"],
-        remove_target=config["remove_target"]
+        seq_len=config["model_params"]["seq_len"]
     )
     val_offline_dataloader = DataLoader(
         dataset=val_offline_dataset,
