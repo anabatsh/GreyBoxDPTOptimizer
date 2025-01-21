@@ -22,14 +22,4 @@ class Problem():
         Output:
             y - target values (float vector of shape [batch_size])
         """
-        return np.random.rand(*np.array(x).shape)
-    
-    def constraints(self, x):
-        """
-        Function to compute whether given argument x satisfy the constraints.
-        Input:
-            x - given arguments (integer vectors of shape [batsh_size, d])
-        Output:
-            y - constraints compliance (boolean vector of shape [batch_size])
-        """
-        return np.random.randint(0, 2, *np.array(x).shape).astype(np.bool_)
+        pass

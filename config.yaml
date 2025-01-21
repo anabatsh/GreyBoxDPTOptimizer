@@ -1,20 +1,20 @@
 wandb_params:
-    project: "GreyBoxDPTOptimizer_2"
-    group: "markoviann"
+    project: "DPT_2"
+    group: "quadratic"
     name: null
     entity: null
-    save_dir: "../GreyBoxDPTOptimizerData/"
+    save_dir: "../results/"
 
 model_params:
-    num_actions: 1024
+    seq_len: 3
+    input_dim: 1
     hidden_dim: 128
+    output_dim: 1
     num_layers: 4
     num_heads: 4
-    seq_len: 100
     attention_dropout: 0 #0.5
-    residual_dropout: 0 #0.1
+    residual_dropout: 0
     embedding_dropout: 0 #0.3
-    pre_norm: True
 
 optimizer_params:
     lr: 0.001
@@ -22,7 +22,7 @@ optimizer_params:
     betas: [0.9, 0.999]
 
 remove_target: true
-ordered: true
+ordered: false
 
 with_scheduler: false
 scheduler_params:
@@ -30,21 +30,20 @@ scheduler_params:
 
 loss: "dynamic"
 label_smoothing: 0.1
-precision: "16-mixed"
-max_epochs: 500
+precision: 32
+max_epochs: 200
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
 # temperature: 1
 # do_samples: true
 
-n_problems: 1000
+n_problems: 5000
 
 batch_size: 512
-num_workers: 8
+num_workers: 16
 
-problem: "SimpleQuadratic"
-# problem: "Quadratic"
+problem: "Quadratic"
 problem_params:
     d: 1
     n: 1024
