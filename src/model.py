@@ -11,9 +11,9 @@ except ImportError:
 class DPT(nn.Module):
     def __init__(
         self,
-        seq_len: int = 3,
-        input_dim: int = 1, # размерность х, размерность y = 1
-        output_dim: int = 1,
+        state_dim: int,
+        action_dim: int,
+        seq_len: int = 100,
         hidden_dim: int = 256,
         num_layers: int = 4,
         num_heads: int = 4,
@@ -23,8 +23,15 @@ class DPT(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.input_projector = nn.Linear(input_dim + 1, hidden_dim)
-        self.output_projector = nn.Linear(hidden_dim, output_dim)
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+
+        self.state_proj = nn.Linear(state_dim, hidden_dim)
+        self.seq_proj = nn.Sequential(
+            nn.Linear(2 * hidden_dim + action_dim + 1, 4 * hidden_dim),
+            nn.GELU(),
+            nn.Linear(4 * hidden_dim, hidden_dim),
+        )
 
         self.emb_dropout = nn.Dropout(embedding_dropout)
         self.transformer = nn.ModuleList([
@@ -33,10 +40,11 @@ class DPT(nn.Module):
                 num_heads=num_heads,
                 attention_dropout=attention_dropout,
                 residual_dropout=residual_dropout,
-                max_seq_len=seq_len,
+                max_seq_len=seq_len+1,
             )
             for _ in range(num_layers)
         ])
+        self.action_head = nn.Linear(hidden_dim, action_dim)
     #     self.apply(self._init_weights)
 
     # @staticmethod
@@ -51,45 +59,76 @@ class DPT(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,  # [batch_size, seq_len, input_dim]
-        y: torch.Tensor,  # [batch_size, seq_len]
+        query_state: torch.Tensor,  # [batch_size, state_dim]
+        states: torch.Tensor,       # [batch_size, seq_len, state_dim]
+        actions: torch.Tensor,      # [batch_size, seq_len, 1]
+        next_states: torch.Tensor,  # [batch_size, seq_len, state_dim]
+        rewards: torch.Tensor,      # [batch_size, seq_len]
     ) -> torch.Tensor:
 
-        # [batch_size, seq_len, input_dim]
-        x_emb = x
-        # [batch_size, seq_len, 1]
-        y_emb = y.unsqueeze(-1)
+        # [batch_size, 1, num_states]
+        if query_state.ndim < 3:
+            query_state = query_state.unsqueeze(1)
 
-        # [batch_size, seq_len + 1, input_dim]
-        x_seq = torch.cat(
+        assert (
+            query_state.shape[0] ==
+            states.shape[0] ==
+            next_states.shape[0] ==
+            actions.shape[0] ==
+            rewards.shape[0]
+        )
+        # [batch_size, 1, state_dim] -> [batch_size, 1, hidden_dim]
+        query_state_emb = self.state_proj(query_state)
+        # [batch_size, seq_len, state_dim] -> [batch_size, seq_len, hidden_dim]
+        states_emb = self.state_proj(states)
+        # [batch_size, seq_len, state_dim] -> [batch_size, seq_len, hidden_dim]
+        next_states_emb = self.state_proj(next_states)
+        # [batch_size, seq_len, 1] -> [batch_size, seq_len, action_dim]
+        actions_emb = F.one_hot(actions[:, :, 0], num_classes=self.action_dim)
+
+        # [batch_size, seq_len + 1, hidden_dim]
+        state_seq = torch.cat([query_state_emb, states_emb], dim=1)
+        # [batch_size, seq_len + 1, action_dim]
+        action_seq = torch.cat(
             [
                 torch.zeros(
-                    (x_emb.shape[0], 1, x_emb.shape[-1]),
-                    dtype=x_emb.dtype,
-                    device=x_emb.device,
+                    (actions_emb.shape[0], query_state_emb.shape[1], actions_emb.shape[-1]),
+                    dtype=actions_emb.dtype,
+                    device=actions_emb.device,
                 ),
-                x_emb,
+                actions_emb,
+            ],
+            dim=1,
+        )
+        # [batch_size, seq_len + 1, hidden_dim]
+        next_state_seq = torch.cat(
+            [
+                torch.zeros(
+                    (next_states_emb.shape[0], query_state_emb.shape[1], next_states_emb.shape[-1]),
+                    dtype=next_states_emb.dtype,
+                    device=next_states_emb.device,
+                ),
+                next_states_emb,
             ],
             dim=1,
         )
         # [batch_size, seq_len + 1, 1]
-        y_seq = torch.cat(
+        reward_seq = torch.cat(
             [
                 torch.zeros(
-                    (y_emb.shape[0], 1, y_emb.shape[-1]),
-                    dtype=y_emb.dtype,
-                    device=y_emb.device,
+                    (rewards.shape[0], query_state_emb.shape[1]),
+                    dtype=rewards.dtype,
+                    device=rewards.device,
                 ),
-                y_emb,
+                rewards,
             ],
             dim=1,
-        )
-
-        # [batch_size, seq_len + 1, input_dim + 1]
-        sequence = torch.cat([x_seq, y_seq], dim=-1)
+        ).unsqueeze(-1)
+        # [batch_size, seq_len + 1, 2 * hidden_dim + action_dim + 1]
+        sequence = torch.cat([state_seq, action_seq, next_state_seq, reward_seq], dim=-1)
 
         # [batch_size, seq_len + 1, hidden_dim]
-        sequence = self.input_projector(sequence)
+        sequence = self.seq_proj(sequence)
 
         # [batch_size, seq_len + 1, hidden_dim]
         out = self.emb_dropout(sequence)
@@ -98,6 +137,7 @@ class DPT(nn.Module):
         for block in self.transformer:
             out = block(out)
 
-        # [batch_size, seq_len + 1, output_dim]
-        out = self.output_projector(out)
+        # [batch_size, seq_len + 1, action_dim]
+        out = self.action_head(out)
+
         return out

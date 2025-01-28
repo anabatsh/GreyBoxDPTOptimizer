@@ -10,14 +10,19 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import seed_everything
 
-from src.train import DPTSolver
 from src.data import OfflineDataset, OnlineDataset, custom_collate_fn
-
-from utils import *
+from src.train import DPTSolver
 import problems as p
 
 os.environ['WANDB_SILENT'] = "true"
 
+
+def load_config(config_path):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f'Config file not found: {config_path}')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
 
 def get_dataloaders(config):
     # get problems
@@ -43,7 +48,7 @@ def get_dataloaders(config):
         shuffle=True,
         collate_fn=collate_fn
     )
-    print('train_offline_dataset:', len(train_offline_dataset))
+    print(f'train_offline_dataset: {len(train_offline_dataset)} problems')
 
     # get an offline validation dataloader
     val_offline_dataset = OfflineDataset(
@@ -58,17 +63,17 @@ def get_dataloaders(config):
         shuffle=False,
         collate_fn=collate_fn
     )
-    print('val_offline_dataset:', len(val_offline_dataset))
+    print(f'val_offline_dataset: {len(val_offline_dataset)} problems')
 
     # get an online validation dataloader
     val_online_dataset = OnlineDataset(val_problems)
     val_online_dataloader = DataLoader(
         dataset=val_online_dataset,
-        batch_size=1,
+        batch_size=config["batch_size"],
         num_workers=config["num_workers"],
         collate_fn=collate_fn
     )
-    print('val_online_dataset:', len(val_online_dataset))
+    print(f'val_online_dataset: {len(val_online_dataset)} problems')
 
     return {
         'train_dataloaders': train_offline_dataloader,
@@ -79,7 +84,7 @@ def train(config):
     logger = WandbLogger(**config["wandb_params"])
     model = DPTSolver(config)
 
-    checkpoint_callback = ModelCheckpoint(every_n_epochs=100, save_top_k=-1)
+    checkpoint_callback = ModelCheckpoint(every_n_epochs=50, save_top_k=-1, filename='{epoch}')
     trainer = L.Trainer(
         logger=logger,
         precision=config["precision"],

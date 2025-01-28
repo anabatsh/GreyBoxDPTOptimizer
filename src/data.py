@@ -23,18 +23,28 @@ class OnlineDataset(Dataset):
 
     def __getitem__(self, index: int):
         problem = self.problems[index]
-        x_min = problem.info["x_min"]
 
-        if problem.n == 1:
-            return {
-                "x_min": torch.FloatTensor(x_min),
-                "problem": problem
-            }
+        # query state
+        x = np.random.randint(0, problem.n, size=(problem.d))
+        y = problem.target(x)
+        query_state = np.hstack([x, y])
+
+        # # target_action
+        # indexes = np.where(problem.info["x_min"] - query_state[:-1].astype(int))[0]
+        # index = indexes[0] if len(indexes) else problem.d
+        # target_action = np.array([index])
+
+        # target_state
+        x = problem.info["x_min"]
+        y = problem.info["y_min"]
+        target_state = np.hstack([x, y])
+
         return {
-            "x_min": torch.LongTensor(x_min),
+            "query_state": torch.FloatTensor(query_state),
+            "target_state": torch.FloatTensor(target_state),
             "problem": problem
         }
-
+    
 class OfflineDataset(OnlineDataset):
     """
     """
@@ -44,23 +54,42 @@ class OfflineDataset(OnlineDataset):
 
     def __getitem__(self, index: int):
         problem = self.problems[index]
-        x_min = problem.info["x_min"]
 
-        if problem.n == 1:
-            x = np.random.rand(self.seq_len, problem.d)
-            y = problem.target(x)
-            return {
-                "x": torch.FloatTensor(x),
-                "y": torch.FloatTensor(y),
-                "x_min": torch.FloatTensor(x_min),
-                "problem": problem
-            }
+        # query state
+        x = np.random.randint(0, problem.n, size=(problem.d))
+        y = problem.target(x)
+        query_state = np.hstack([x, y])
 
+        # states
         x = np.random.randint(0, problem.n, size=(self.seq_len, problem.d))
         y = problem.target(x)
+        states = np.hstack([x, y[:, None]])
+
+        # actions
+        actions = np.random.randint(0, problem.d + 1, size=(self.seq_len, 1))
+
+        # next states
+        x_next = x.copy()
+        mask = actions[:, 0] < problem.d
+        x_next[np.arange(self.seq_len)[mask], actions[mask][:, 0]] = np.abs(1 - x_next[np.arange(self.seq_len)[mask], actions[mask][:, 0]])        
+        y_next = problem.target(x_next)
+        next_states = np.hstack([x_next, y_next[:, None]])
+
+        # rewards
+        rewards = np.sign(y - y_next)
+
+        # target_action
+        indexes = np.where(problem.info["x_min"] - query_state[:-1].astype(int))[0]
+        index = indexes[0] if len(indexes) else problem.d
+        target_action = np.array([index])
+
         return {
-            "x": torch.LongTensor(x),
-            "y": torch.FloatTensor(y),
-            "x_min": torch.LongTensor(x_min),
+            "query_state": torch.FloatTensor(query_state),
+            "states": torch.FloatTensor(states),
+            "actions": torch.LongTensor(actions),
+            "next_states": torch.FloatTensor(next_states),
+            "rewards": torch.FloatTensor(rewards),
+            "target_action": torch.LongTensor(target_action),
             "problem": problem
         }
+

@@ -22,7 +22,7 @@ class TransformerBlock(nn.Module):
             hidden_dim=hidden_dim,
             num_heads=num_heads,
             dropout=attention_dropout,
-            max_seq_len=max_seq_len + 1,
+            max_seq_len=max_seq_len,
         )
 
         self.mlp = nn.Sequential(
