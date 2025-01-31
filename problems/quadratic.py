@@ -46,23 +46,3 @@ class DiscreteQuadratic(Problem):
 
     def target(self, x):
         return self.alpha * ((x - self.x_shift) @ self.base / self.scaling) ** 2 + self.y_shift
-
-
-
-
-    # p = np.random.rand()
-    # self.constraint = np.random.choice([0, 1], n**d, p=[p, 1-p]).astype(np.bool)
-
-    # def _constraints(self, x):
-    #     return self.constraint[x @ self.base]
-
-    # def target(self, x):
-    #     c = self._constraints(x)
-    #     y = np.ones_like(c) * 1e+10
-    #     if isinstance(c, np.ndarray):
-    #         y[c] = self._target(x[c])
-    #     elif c:
-    #         y = self._target(x)
-    #     else:
-    #         y = y
-    #     return y

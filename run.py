@@ -4,13 +4,14 @@ import random
 from functools import partial
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import seed_everything
 
-from src.data import OfflineDataset, OnlineDataset, custom_collate_fn
+from src.data import OfflineDataset, OnlineDataset
 from src.train import DPTSolver
 import problems as p
 
@@ -23,6 +24,13 @@ def load_config(config_path):
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
     return config
+
+def collate_problem_fn(batch, *, collate_fn_map):
+    return batch
+
+def custom_collate_fn(batch, problem_class):
+    custom_collate_fn_map = default_collate_fn_map | {problem_class: collate_problem_fn}
+    return collate(batch, collate_fn_map=custom_collate_fn_map)
 
 def get_dataloaders(config):
     # get problems
@@ -84,7 +92,7 @@ def train(config):
     logger = WandbLogger(**config["wandb_params"])
     model = DPTSolver(config)
 
-    checkpoint_callback = ModelCheckpoint(every_n_epochs=50, save_top_k=-1, filename='{epoch}')
+    checkpoint_callback = ModelCheckpoint(every_n_epochs=2, save_top_k=-1, filename='{epoch}')
     trainer = L.Trainer(
         logger=logger,
         precision=config["precision"],

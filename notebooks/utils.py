@@ -9,22 +9,6 @@ import matplotlib.pyplot as plt
 from matplotlib import colormaps as cm
 
 
-def get_best_checkpoint(log_dir, key='epoch') -> str:
-    checkpoints = defaultdict(dict)
-    checkpoints_dir = os.path.join(log_dir, 'checkpoints')
-
-    pattern = r'epoch=(\d+)-step=(\d+)'
-
-    for filename in [file for file in os.listdir(checkpoints_dir)
-                 if file.endswith('.ckpt') and file != 'last.ckpt']:
-
-        epoch, step = re.findall(pattern, filename)[0]
-        checkpoints[filename] = {'epoch': epoch, 'step': step}  # Create a dictionary for the checkpoint
-
-    # Find the checkpoint with the maximum value for the given key
-    cpkt = max(checkpoints.keys(), key=lambda cp: float(checkpoints[cp][key]))
-    return os.path.join(checkpoints_dir, cpkt)
-
 def int2bin(x, d, n):
     """
     For a given decimal scalar value obtain a 
@@ -37,10 +21,7 @@ def int2bin(x, d, n):
     for _ in range(d):
         i.append(x % n)
         x = x // n
-    if isinstance(x, torch.Tensor):
-        i = torch.stack(i).T.flip(-1)
-    else:
-        i = np.array(i)[::-1].T
+    i = np.array(i)[::-1].T
     return i
 
 def get_xaxis(d, n, len_max=1024):
@@ -111,11 +92,9 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
         return f'{str(x)[:-1]}, {y:.6f}]'
     
     def action_transform(action):
-        index = action.item()
-        return f'index: {index}'
-        # index, value = action.tolist()
-        # return f'index: {index}, value: {value}'
-    
+        action = action.item()
+        return f'{action}'
+
     def reward_transform(reward):
         reward = reward.int().item()
         return f'reward: {reward}'
@@ -157,7 +136,7 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
 
     print('ground truth:')
     gt_state = torch.cat([
-        torch.tensor(sample["problem"].info["x_min"]),
+        torch.tensor(sample["problem"].info["x_min"].copy()),
         torch.tensor([sample["problem"].info["y_min"]])
     ])
     print(tab, state_transform(gt_state))
@@ -183,7 +162,7 @@ def run(model, sample):
         results = model.run(
             query_state=sample["query_state"],
             problem=sample["problem"],
-            n_steps=model.config["model_params"]["seq_len"]+1,
+            n_steps=15, #model.config["model_params"]["seq_len"]+1,
             do_sample=model.config["do_sample"],
             temperature_function=lambda x: model.config["temperature"]
         )

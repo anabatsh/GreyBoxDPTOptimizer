@@ -1,5 +1,5 @@
 wandb_params:
-    project: "DPT_2"
+    project: "DPT_3"
     group: "quadratic"
     name: null
     entity: null
@@ -9,7 +9,7 @@ model_params:
     state_dim: 11
     action_dim: 11
     seq_len: 50
-    hidden_dim: 32
+    hidden_dim: 64
     num_layers: 4
     num_heads: 4
     attention_dropout: 0 #0.5
@@ -27,20 +27,23 @@ scheduler_params:
 
 label_smoothing: 0.1
 precision: 32
-max_epochs: 250 #1000
+max_epochs: 500 # 1000
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
-do_samples: false
+do_sample: false
 temperature: 1
 
 n_problems: 25000
 
 batch_size: 512
-num_workers: 16
+num_workers: 25
 
+online_steps: 25
 # problem: "DiscreteQuadratic"
-problem: "DiscretePolynomial"
+# problem: "DiscretePolynomial"
+problem: "QUBO"
 problem_params:
     d: 10
     n: 2
+    # m: 1

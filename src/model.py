@@ -61,7 +61,7 @@ class DPT(nn.Module):
         self,
         query_state: torch.Tensor,  # [batch_size, state_dim]
         states: torch.Tensor,       # [batch_size, seq_len, state_dim]
-        actions: torch.Tensor,      # [batch_size, seq_len, 1]
+        actions: torch.Tensor,      # [batch_size, seq_len]
         next_states: torch.Tensor,  # [batch_size, seq_len, state_dim]
         rewards: torch.Tensor,      # [batch_size, seq_len]
     ) -> torch.Tensor:
@@ -84,7 +84,7 @@ class DPT(nn.Module):
         # [batch_size, seq_len, state_dim] -> [batch_size, seq_len, hidden_dim]
         next_states_emb = self.state_proj(next_states)
         # [batch_size, seq_len, 1] -> [batch_size, seq_len, action_dim]
-        actions_emb = F.one_hot(actions[:, :, 0], num_classes=self.action_dim)
+        actions_emb = F.one_hot(actions, num_classes=self.action_dim)
 
         # [batch_size, seq_len + 1, hidden_dim]
         state_seq = torch.cat([query_state_emb, states_emb], dim=1)
