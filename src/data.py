@@ -2,6 +2,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+def relative_improvement(x, y):
+    return np.abs(x - y) / (np.finfo(x.dtype).eps + np.abs(x))
+
 
 class OnlineDataset(Dataset):
     def __init__(self, problems):
@@ -29,7 +32,8 @@ class OnlineDataset(Dataset):
             "target_state": torch.FloatTensor(target_state),
             "problem": problem
         }
-    
+
+
 class OfflineDataset(OnlineDataset):
     def __init__(self, problems, seq_len=50):
         super().__init__(problems)
@@ -56,25 +60,46 @@ class OfflineDataset(OnlineDataset):
         # -----------------------------------------------------------------------------------------
         # тут можно раскомментировать нужный вариант
         # rewards - 1, если достигли минимума или приблизились к нему, иначе 0: [seq_len]
-        rewards = np.zeros(self.seq_len)
-        rewards[mask] = x_next[indices[mask], actions[mask]] == problem.info["x_min"][actions[mask]]
-        rewards[~mask] = np.all(x_next[indices[~mask]] == problem.info["x_min"][None, :], -1)
+        # rewards = np.zeros(self.seq_len)
+        # rewards[mask] = x_next[indices[mask], actions[mask]] == problem.info["x_min"][actions[mask]]
+        # rewards[~mask] = np.all(x_next[indices[~mask]] == problem.info["x_min"][None, :], -1)
 
         # # rewards - 1, если достигли минимума, иначе 0: [seq_len]
         # rewards = np.zeros(self.seq_len)
         # rewards[y_next == problem.info["y_min"]] = 1.0
-        # -----------------------------------------------------------------------------------------
-        # target_action: [] 
-        target_action = np.random.randint(0, problem.d + 1)
+
+        # R(y) = alpha * relerr(y[n], y[:n].min())) + (1 - alpha) * (1 / (1 + (y[:n] - y[n]).abs().min()))
+        alpha = 0.5
+        reward_exploit = relative_improvement(np.minimum.accumulate(y), y_next)
+
+        mask = np.tril(np.ones((self.seq_len, self.seq_len), dtype=bool))
+        y_expanded = np.where(mask, y[None, :], np.inf)
+        exploration = np.abs(y_expanded - y_next[:, None])
+        reward_explore = 1 / (1 + exploration.min(1))
+        rewards = alpha * reward_exploit + (1 - alpha) * reward_explore
 
         # query state: [state_dim]
+    
         # до target_action совпадает с минимумом, в target_action отличается, после - произвольный
-        x = problem.info["x_min"].copy()
-        if target_action < problem.d:
-            x[target_action] = problem.info["x_min"][target_action] ^ 1
-            x[target_action+1:] = np.random.randint(0, problem.n, size=problem.d-target_action-1)
-        y = problem.target(x)
-        query_state = np.hstack([x, y])
+        # query_x = problem.info["x_min"].copy()
+        # if target_action < problem.d:
+        #     query_x[target_action] = problem.info["x_min"][target_action] ^ 1
+        #     query_x[target_action+1:] = np.random.randint(0, problem.n, size=problem.d-target_action-1)
+
+        # рандомный x "рядом" с argmin
+        query_x = problem.info["x_min"].copy()
+        n_corrupt_indices = np.random.binomial(problem.d, 0.4)
+        corrupt_indices = np.random.randint(0, problem.d, size=(n_corrupt_indices))
+        query_x[corrupt_indices] ^= 1
+        y = problem.target(query_x)
+        query_state = np.hstack([query_x, y])
+
+        # -----------------------------------------------------------------------------------------
+        # target_action: []
+        # максимизирующий exploitation
+        possible_actions = np.eye(problem.d + 1, problem.d, dtype=int)
+        possible_next_states = possible_actions ^ query_x
+        target_action = problem.target(possible_next_states).argmin()
 
         return {
             "query_state": torch.FloatTensor(query_state),
@@ -85,4 +110,3 @@ class OfflineDataset(OnlineDataset):
             "target_action": torch.tensor(target_action, dtype=torch.long),
             "problem": problem
         }
-
