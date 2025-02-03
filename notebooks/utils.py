@@ -96,7 +96,7 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
         return f'{action}'
 
     def reward_transform(reward):
-        reward = reward.int().item()
+        reward = reward.item()
         return f'reward: {reward}'
 
     print('query_state:')
@@ -146,7 +146,7 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
         print('found minimum:')
         print(tab, state_transform(sample["next_states"][index_min]))
 
-def run(model, sample):
+def run(model, sample, n_steps=15):
     if len(sample.keys()) > 3:
         outputs = model.model(
             query_state=sample["query_state"].unsqueeze(0),
@@ -162,7 +162,7 @@ def run(model, sample):
         results = model.run(
             query_state=sample["query_state"],
             problem=sample["problem"],
-            n_steps=15, #model.config["model_params"]["seq_len"]+1,
+            n_steps=n_steps, #model.config["model_params"]["seq_len"]+1,
             do_sample=model.config["do_sample"],
             temperature_function=lambda x: model.config["temperature"]
         )
@@ -170,9 +170,9 @@ def run(model, sample):
         sample["actions"] = results["actions"]
         sample["next_states"] = results["next_states"]
         sample["rewards"] = results["rewards"]
-        
+
         outputs = results["outputs"].unsqueeze(0)
-        predictions = results["best_state"].unsqueeze(0)
+        predictions = results["next_states"].unsqueeze(0)
         targets = sample["target_state"].unsqueeze(0)
         metrics = model.get_metrics(outputs, targets, predictions)
 

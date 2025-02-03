@@ -1,49 +1,51 @@
 wandb_params:
     project: "DPT_3"
-    group: "quadratic"
+    group: "QUBO"
     name: null
     entity: null
-    save_dir: "../results/"
+    save_dir: "results/"
 
 model_params:
     state_dim: 11
     action_dim: 11
-    seq_len: 50
-    hidden_dim: 64
+    seq_len: 100
+    hidden_dim: 128
     num_layers: 4
     num_heads: 4
-    attention_dropout: 0 #0.5
-    residual_dropout: 0
-    embedding_dropout: 0 #0.3
+    attention_dropout: 0.3 #0.5
+    residual_dropout: 0.1
+    embedding_dropout: 0.3 #0.3
 
 optimizer_params:
-    lr: 0.001
-    weight_decay: 0.0001
+    lr: 0.003
+    weight_decay: 5.e-5
+    eps: 1.e-7
+    # warmup_steps: 500
     betas: [0.9, 0.999]
 
-with_scheduler: false
+with_scheduler: true
 scheduler_params:
-    warmup_epochs: 2
+    warmup_epochs: 25
 
-label_smoothing: 0.1
-precision: 32
-max_epochs: 500 # 1000
+label_smoothing: 0.05
+precision: bf16-mixed
+max_epochs: 1000 # 1000
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
 do_sample: false
 temperature: 1
 
-n_problems: 25000
-
 batch_size: 512
-num_workers: 25
+num_workers: 24
 
-online_steps: 25
+online_steps: 100
 # problem: "DiscreteQuadratic"
 # problem: "DiscretePolynomial"
-problem: "QUBO"
+
 problem_params:
+    problem: "QUBO"
     d: 10
     n: 2
+    n_problems: 150000
     # m: 1

@@ -6,20 +6,34 @@ from collections import defaultdict
 try:
     from model import DPT
     from schedule import cosine_annealing_with_warmup
+    from data import relative_improvement
 except ImportError:
     from .model import DPT
     from .schedule import cosine_annealing_with_warmup
+    from .data import relative_improvement
+try:
+    from heavyball import PaLMForeachSFAdamW
+except ImportError:
+    ForeachCachedPSGDKron = None
 
+import numpy as np
 
 class DPTSolver(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.model = DPT(**config["model_params"])
+        
         self.save_hyperparameters()
+        self.model = None
+
+    def configure_model(self):
+        if self.model is not None:
+            return
+        self.model = DPT(**self.config["model_params"])
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        opt_cls = PaLMForeachSFAdamW if PaLMForeachSFAdamW is not None else torch.optim.AdamW
+        optimizer = opt_cls(
             params=self.model.parameters(),
             **self.config["optimizer_params"]
         )
@@ -31,7 +45,7 @@ class DPTSolver(L.LightningModule):
             )
             return {"optimizer": optimizer, "lr_scheduler": scheduler}
         return optimizer
-    
+
     def training_step(self, batch, batch_idx):
         """
         offline training step
@@ -39,7 +53,7 @@ class DPTSolver(L.LightningModule):
         outputs = self._offline_step(batch)
         results = self.get_loss(**outputs) | self.get_metrics(**outputs)
         for key, val in results.items():
-            self.log(f"train {key}", val, on_step=True, on_epoch=False)
+            self.log(f"train_{key}", val, on_step=True, on_epoch=False)
         return results
 
     def validation_step(self, batch, batch_idx):
@@ -49,7 +63,7 @@ class DPTSolver(L.LightningModule):
         outputs = self._offline_step(batch)
         results = self.get_loss(**outputs) | self.get_metrics(**outputs)
         for key, val in results.items():
-            self.log(f"val {key}", val, on_step=False, on_epoch=True)
+            self.log(f"val_{key}", val, on_step=False, on_epoch=True, sync_dist=True)
         return results
 
     def on_test_epoch_start(self):
@@ -66,7 +80,7 @@ class DPTSolver(L.LightningModule):
             predictions=outputs["best_prediction"]
         )
         for key, val in results.items():
-            self.log(f"test {key}", val, on_step=False, on_epoch=True)
+            self.log(f"test_{key}", val, on_step=False, on_epoch=True)
 
         if hasattr(self, "results"):
             all_predictions_results = self.get_metrics(
@@ -92,12 +106,13 @@ class DPTSolver(L.LightningModule):
         outputs - [batch_size, seq_len + 1, action_dim]
         targets - [batch_size]
         """
-        log_outputs = F.log_softmax(outputs, -1).permute(0, 2, 1)
-        targets = targets[:, None].repeat(1, outputs.shape[1])
-        loss = F.nll_loss(log_outputs[..., 1:], targets[..., 1:])
+        loss_fct = nn.CrossEntropyLoss(label_smoothing=self.config["label_smoothing"])
+        logits = outputs.view(-1, outputs.size(-1)).contiguous()
+        labels = targets.unsqueeze(1).repeat(1, outputs.size(1)).view(-1).long().contiguous()
+        loss = loss_fct(logits, labels)
         return {"loss": loss}
-    
-    def get_metrics(self, outputs, targets, predictions):
+
+    def get_metrics(self, outputs, targets, predictions, problem=None):
         """
         offline mode:
             predictions - [batch_size, seq_len + 1]
@@ -116,8 +131,8 @@ class DPTSolver(L.LightningModule):
                 y_mae = torch.abs(predictions[:, :, -1] - targets[:, None, -1]).mean(0)
                 return {"x_mae": x_mae, "y_mae": y_mae}
 
-        accuracy = (predictions == targets[:, None]).to(torch.float).mean()
-        mae = torch.abs(predictions - targets[:, None]).to(torch.float).mean()
+        accuracy = (predictions == targets[:, None]).float().mean()
+        mae = torch.abs(predictions - targets[:, None]).float().mean()
         return {"accuracy": accuracy, "mae": mae}
 
     def get_predictions(self, outputs, do_sample=False, temperature=1.0):
@@ -202,7 +217,7 @@ class DPTSolver(L.LightningModule):
             predicted_state = query_state.clone()
             if predicted_action < problem.d:
                 predicted_state[0][predicted_action[0]] = torch.abs(1 - predicted_state[0][predicted_action[0]])
-                predicted_state[0][-1] = problem.target(predicted_state[0][:-1].cpu().detach().numpy())
+                predicted_state[0][-1] = problem.target(predicted_state[0][:-1].squeeze(0).cpu().detach().numpy())
             # [1, n_step, state_dim]
             states = torch.cat([states, query_state.unsqueeze(1)], dim=1)
             # [1, n_step]
@@ -211,6 +226,15 @@ class DPTSolver(L.LightningModule):
             next_states = torch.cat([next_states, predicted_state.unsqueeze(1)], dim=1)
             # [1]
             reward = torch.tensor([0.0], device=device)
+
+            y = next_states[..., -1].cpu().detach().numpy()
+            y = np.hstack((y[:, [0]], y))
+
+            alpha = 0.5
+            reward_exploit = relative_improvement(y[:, :-1].min(1), y[:, -1])
+            exploration = np.abs(y[:, :-1] - y[:, -1])
+            reward_explore = 1 / (1 + exploration.min(1))
+            reward = torch.tensor(alpha * reward_exploit + (1 - alpha) * reward_explore, device=device)
             # --------------------------------------------------------------------------------------------------
             # нечестный reward
             # if predicted_action < problem.d:
@@ -242,7 +266,7 @@ class DPTSolver(L.LightningModule):
             "next_states": next_states[0],
             "rewards": rewards[0],
             "outputs": outputs[0],
-            "best_state": best_state
+            "best_state": best_state,
         }
 
 

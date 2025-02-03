@@ -1,5 +1,4 @@
-import numpy as np
-
+import dill
 
 class Problem():
     """
@@ -23,3 +22,18 @@ class Problem():
             y - target values (float vector of shape [batch_size])
         """
         pass
+
+class ProblemSet():
+    def __init__(self, problems: list[Problem]):
+        self.problems = problems
+
+
+def serialize_problem_set(problem_set, filename):
+    with open(filename, 'wb+') as f:
+        dill.dump(problem_set, f)
+
+
+def deserialize_problem_set(filename):
+    with open(filename, 'rb') as f:
+        problem_set = dill.load(f)
+    return problem_set
