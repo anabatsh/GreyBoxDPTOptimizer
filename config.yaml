@@ -12,12 +12,12 @@ model_params:
     hidden_dim: 128
     num_layers: 4
     num_heads: 4
-    attention_dropout: 0.3 #0.5
+    attention_dropout: 0.25 #0.5
     residual_dropout: 0.1
     embedding_dropout: 0.3 #0.3
 
 optimizer_params:
-    lr: 0.003
+    lr: 0.005
     weight_decay: 5.e-5
     eps: 1.e-7
     # warmup_steps: 500
@@ -25,7 +25,7 @@ optimizer_params:
 
 with_scheduler: true
 scheduler_params:
-    warmup_epochs: 25
+    warmup_epochs: 5
 
 label_smoothing: 0.05
 precision: bf16-mixed
@@ -47,5 +47,6 @@ problem_params:
     problem: "QUBO"
     d: 10
     n: 2
-    n_problems: 150000
+    n_problems: 250000
+    use_problems: 250000
     # m: 1

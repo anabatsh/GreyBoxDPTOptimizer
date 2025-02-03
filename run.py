@@ -49,7 +49,7 @@ class ProblemDataModule(LightningDataModule):
     def prepare_data(self):
         # This method is called only once, regardless of the number of GPUs
         problem_class = getattr(pbs, self.config["problem_params"]["problem"])
-        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items())) + ".dill"
+        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items()) if k != "use_problems") + ".dill"
         data_path = os.path.join("data", data_path)
         if not os.path.exists(data_path):
             print("Generating dataset...")
@@ -58,12 +58,12 @@ class ProblemDataModule(LightningDataModule):
             print(f"Saved problem set to {data_path}")
 
     def setup(self, stage=None):
-        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items())) + ".dill"
+        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items()) if k != "use_problems") + ".dill"
         data_path = os.path.join("data", data_path)
-        self.problems = pbs.deserialize_problem_set(data_path).problems[:self.config["problem_params"]]["use_problems"]
+        self.problems = pbs.deserialize_problem_set(data_path).problems[-self.config["problem_params"]["use_problems"]:]
         # This method is called on every GPU, but the data is already prepared
-        val_size = int(len(self.problems) * 0.1)
-        random.shuffle(self.problems)
+        val_size = int(len(self.problems) * 0.2)
+        # random.shuffle(self.problems)
         self.train_problems = self.problems[:-val_size]
         self.val_problems = self.problems[-val_size:]
 
