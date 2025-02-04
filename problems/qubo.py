@@ -43,16 +43,17 @@ class QUBO(Problem):
             self.info = {"x_min": x[i_best], "y_min": y[i_best]}
             del x
 
-
-    def target(self, x_in, device='cpu'):
-        x = torch.tensor(x_in.copy(), device=device, dtype=torch.float32)
-        xdim = x.dim()
-        if xdim < 2:
-            x = x.unsqueeze(0)
-        Q = torch.tensor(self.Q, device=device, dtype=torch.float32)
-        y = ((x @ Q) * x).sum(1)
-        del x, Q
-        if xdim < 2:
-            y = y.item()
-            return y
-        return y.detach().cpu().numpy()
+    def target(self, x):
+    # def target(self, x_in, device='cpu'):
+        # x = torch.tensor(x_in.copy(), device=device, dtype=torch.float32)
+        # xdim = x.dim()
+        # if xdim < 2:
+        #     x = x.unsqueeze(0)
+        # Q = torch.tensor(self.Q, device=device, dtype=torch.float32)
+        # y = ((x @ Q) * x).sum(1)
+        # del x, Q
+        # if xdim < 2:
+        #     y = y.item()
+        #     return y
+        # return y.detach().cpu().numpy()
+        return ((x @ self.Q) * x).sum(-1)

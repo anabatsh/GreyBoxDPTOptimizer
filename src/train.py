@@ -6,11 +6,11 @@ from collections import defaultdict
 try:
     from model import DPT
     from schedule import cosine_annealing_with_warmup
-    from data import relative_improvement
+    from reward import Reward, relative_improvement
 except ImportError:
     from .model import DPT
     from .schedule import cosine_annealing_with_warmup
-    from .data import relative_improvement
+    from .reward import Reward, relative_improvement
 try:
     from heavyball import PaLMForeachSFAdamW
 except ImportError:
@@ -22,7 +22,7 @@ class DPTSolver(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        
+        self.reward_model = Reward()
         self.save_hyperparameters()
         self.model = None
 
@@ -149,12 +149,17 @@ class DPTSolver(L.LightningModule):
         return predictions
     
     def _offline_step(self, batch):
+        rewards = self.reward_model.offline(
+            states=batch["states"],
+            actions=batch["actions"],
+            next_states=batch["next_states"]
+        )
         outputs = self.model(
             query_state=batch["query_state"],
             states=batch["states"],
             actions=batch["actions"],
             next_states=batch["next_states"],
-            rewards=batch["rewards"]
+            rewards=rewards
         )
         return {
             "outputs": outputs,
@@ -182,6 +187,7 @@ class DPTSolver(L.LightningModule):
         run an online inference
         """
         device = query_state.device
+        seq_len = self.config["model_params"]["seq_len"]
         state_dim = self.config["model_params"]["state_dim"]
         if query_state.ndim == 1:
             # [1, state_dim]
@@ -203,10 +209,10 @@ class DPTSolver(L.LightningModule):
             # [batch_size, state_dim]
             output = self.model(
                 query_state=query_state,
-                states=states,
-                actions=actions,
-                next_states=next_states,
-                rewards=rewards
+                states=states[:, -seq_len:],
+                actions=actions[:, -seq_len:],
+                next_states=next_states[:, -seq_len:],
+                rewards=rewards[:, -seq_len:]
             )[:, -1, :]
 
             predicted_action = self.get_predictions(output, do_sample=do_sample, temperature=temperature_function(n_step))
@@ -223,27 +229,11 @@ class DPTSolver(L.LightningModule):
             # [batch_size, n_step, state_dim]
             next_states = torch.cat([next_states, predicted_state.unsqueeze(1)], dim=1)
             # [batch_size]
-            y = next_states[..., -1].cpu().detach().numpy()
-            y = np.hstack((y[:, [0]], y))
-
-            alpha = 0.5
-            reward_exploit = relative_improvement(y[:, :-1].min(1), y[:, -1])
-            exploration = np.abs(y[:, :-1] - y[:, -1:])
-            reward_explore = 1 / (1 + exploration.min(1))
-            reward = torch.tensor(alpha * reward_exploit + (1 - alpha) * reward_explore, device=device)
-            # --------------------------------------------------------------------------------------------------
-            # нечестный reward
-            # if predicted_action < problem.d:
-            #     if predicted_state[0][predicted_action[0][0]] == problem.info["x_min"][predicted_action[0][0]]:
-            #         reward = torch.tensor([1.0], device=device)
-            #     else:
-            #         reward = torch.tensor([0.0], device=device)
-            # else:
-            #     if torch.all(predicted_state[0][:-1].cpu() == problem.info["x_min"].copy()):
-            #         reward = torch.tensor([1.0], device=device)
-            #     else:
-            #         reward = torch.tensor([0.0], device=device)
-            # --------------------------------------------------------------------------------------------------
+            reward = self.reward_model.online(
+                states=states[:, -1:],
+                actions=actions[:, -1:],
+                next_states=next_states[:, -1:]
+            ).squeeze(1)
             # [batch_size, n_step]
             rewards = torch.cat([rewards, reward.unsqueeze(1)], dim=1)
             # [batch_size, n_step, state_dim]
@@ -262,7 +252,7 @@ class DPTSolver(L.LightningModule):
             "next_states": next_states[0],
             "rewards": rewards[0],
             "outputs": outputs[0],
-            "best_state": best_states
+            "best_states": best_states
         }
 
 

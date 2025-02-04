@@ -95,66 +95,66 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
         action = action.item()
         return f'{action}'
 
-    def reward_transform(reward):
-        reward = reward.item()
-        return f'reward: {reward}'
-
-    print('query_state:')
-    print(tab, state_transform(sample["query_state"]))
-
     print('context:')
     if len(sample.keys()) > 3:
         context = zip(
             sample["states"], 
             sample["actions"], 
-            sample["next_states"], 
-            sample["rewards"]
+            sample["next_states"] 
         )
         if predictions is None:
-            for state, action, next_state, reward in context:
-                state_str = state_transform(state[0])
-                action_str = action_transform(action[0])
-                next_state_str = state_transform(next_state[0])
-                reward_str = reward_transform(reward[0])
-                print(tab, f'{state_str} -> {action_str} -> {next_state_str} {reward_str}')
-        else:
-            print(tab, f'{{{action_transform(predictions[0])}}}')
-            for prediction, (state, action, next_state, reward) in zip(predictions[1:], context):
+            for state, action, next_state in context:
                 state_str = state_transform(state)
                 action_str = action_transform(action)
                 next_state_str = state_transform(next_state)
-                reward_str = reward_transform(reward)
-                print(tab, f'{state_str} -> {action_str} -> {next_state_str} {reward_str}', f'{{{action_transform(prediction)}}}')
+                print(tab, f'{state_str} -> {action_str} -> {next_state_str}')
+        else:
+            print(tab, f'{{{action_transform(predictions[0])}}}')
+            for prediction, (state, action, next_state) in zip(predictions[1:], context):
+                state_str = state_transform(state)
+                action_str = action_transform(action)
+                next_state_str = state_transform(next_state)
+                print(tab, f'{state_str} -> {action_str} -> {next_state_str}', f'{{{action_transform(prediction)}}}')
 
-    if print_ta:
-        if "target_action" in sample:
-            print('target_action:')
-            print(tab, action_transform(sample["target_action"]))
-        elif "target_state" in sample:
-            print('target_state:')
-            print(tab, state_transform(sample["target_state"]))
+    print('query_state:')
+    print(tab, state_transform(sample["query_state"]))
 
-    print('ground truth:')
-    gt_state = torch.cat([
-        torch.tensor(sample["problem"].info["x_min"].copy()),
-        torch.tensor([sample["problem"].info["y_min"]])
-    ])
-    print(tab, state_transform(gt_state))
+    if "target_action" in sample:
+        print('target_action:')
+        print(tab, action_transform(sample["target_action"]))
+        # elif "target_state" in sample:
+        #     print('target_state:')
+        #     print(tab, state_transform(sample["target_state"]))
 
-    if print_fm:
-        index_min = np.argmin(sample["next_states"][..., -1])
-        print('found minimum:')
-        print(tab, state_transform(sample["next_states"][0][index_min]))
+    # print('ground truth:')
+    # gt_state = torch.cat([
+    #     torch.tensor(sample["problem"].info["x_min"].copy()),
+    #     torch.tensor([sample["problem"].info["y_min"]])
+    # ])
+    # print(tab, state_transform(gt_state))
+
+    # if print_fm:
+    #     index_min = np.argmin(sample["next_states"][..., -1])
+    #     print('found minimum:')
+    #     print(tab, state_transform(sample["next_states"][0][index_min]))
 
 def run(model, sample, n_steps=15):
     if len(sample.keys()) > 3:
-        outputs = model.model(
-            query_state=sample["query_state"],
+        # [seq_len]
+        rewards = model.reward_model.offline(
             states=sample["states"],
             actions=sample["actions"],
-            next_states=sample["next_states"],
-            rewards=sample["rewards"]
+            next_states=sample["next_states"]
         )
+        # [1, seq_len + 1]
+        outputs = model.model(
+            query_state=sample["query_state"].unsqueeze(0),
+            states=sample["states"].unsqueeze(0),
+            actions=sample["actions"].unsqueeze(0),
+            next_states=sample["next_states"].unsqueeze(0),
+            rewards=rewards.unsqueeze(0)
+        )
+        # [1, seq_len + 1]
         predictions = model.get_predictions(outputs)
         targets = sample["target_action"].unsqueeze(0)
         metrics = model.get_loss(outputs, targets, predictions) | model.get_metrics(outputs, targets, predictions)
@@ -176,7 +176,7 @@ def run(model, sample, n_steps=15):
         targets = sample["target_state"].unsqueeze(0)
         metrics = model.get_metrics(outputs, targets, predictions)
 
-    return sample, outputs, predictions, metrics
+    return sample, outputs.squeeze(0), predictions.squeeze(0), metrics
 
 def print_metrics(metrics):
     tab = ' ' * 4

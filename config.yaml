@@ -6,10 +6,10 @@ wandb_params:
     save_dir: "results/"
 
 model_params:
-    state_dim: 51
-    action_dim: 51
-    seq_len: 200
-    hidden_dim: 128
+    state_dim: 11
+    action_dim: 11
+    seq_len: 50
+    hidden_dim: 32
     num_layers: 4
     num_heads: 4
     attention_dropout: 0.5 #0.5
@@ -29,7 +29,7 @@ scheduler_params:
 
 label_smoothing: 0.05
 precision: bf16-mixed
-max_epochs: 1000 # 1000
+max_epochs: 100 # 1000
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
@@ -39,14 +39,14 @@ temperature: 1
 batch_size: 512
 num_workers: 24
 
-online_steps: 100
+online_steps: 50
 # problem: "DiscreteQuadratic"
 # problem: "DiscretePolynomial"
 
 problem_params:
     problem: "QUBO"
-    d: 50
+    d: 10
     n: 2
-    n_problems: 250000
-    use_problems: 250000
+    n_problems: 25000 #0
+    use_problems: 25000 #0
     # m: 1
