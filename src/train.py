@@ -186,6 +186,7 @@ class DPTSolver(L.LightningModule):
         if query_state.ndim == 1:
             # [1, state_dim]
             query_state = query_state.unsqueeze(0)
+            problems = [problems]
         batch_size = query_state.size(0)
         # [batch_size, 0, state_dim]
         states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)
@@ -251,16 +252,17 @@ class DPTSolver(L.LightningModule):
             query_state = predicted_state
 
         # [batch_size, n_step, state_dim]
-        y = next_states[..., -1].squeeze()
+        y = next_states[..., -1].squeeze(-1)
         best_ys = y.cummin(1)[1]
         best_states = torch.gather(next_states, dim=1, index=best_ys.unsqueeze(-1).expand(-1, -1, next_states.size(-1)))
         return {
-            "query_state": query_state,
-            "states": states,
-            "actions": actions,
-            "next_states": next_states,
-            "rewards": rewards,
-            "outputs": outputs,
-            "best_states": best_states,
+            "query_state": query_state[0],
+            "states": states[0],
+            "actions": actions[0],
+            "next_states": next_states[0],
+            "rewards": rewards[0],
+            "outputs": outputs[0],
+            "best_state": best_states
         }
+
 

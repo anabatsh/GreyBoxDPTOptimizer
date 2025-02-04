@@ -112,10 +112,10 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
         )
         if predictions is None:
             for state, action, next_state, reward in context:
-                state_str = state_transform(state)
-                action_str = action_transform(action)
-                next_state_str = state_transform(next_state)
-                reward_str = reward_transform(reward)
+                state_str = state_transform(state[0])
+                action_str = action_transform(action[0])
+                next_state_str = state_transform(next_state[0])
+                reward_str = reward_transform(reward[0])
                 print(tab, f'{state_str} -> {action_str} -> {next_state_str} {reward_str}')
         else:
             print(tab, f'{{{action_transform(predictions[0])}}}')
@@ -144,16 +144,16 @@ def print_sample(sample, predictions=None, print_ta=True, print_fm=False):
     if print_fm:
         index_min = np.argmin(sample["next_states"][..., -1])
         print('found minimum:')
-        print(tab, state_transform(sample["next_states"][index_min]))
+        print(tab, state_transform(sample["next_states"][0][index_min]))
 
 def run(model, sample, n_steps=15):
     if len(sample.keys()) > 3:
         outputs = model.model(
-            query_state=sample["query_state"].unsqueeze(0),
-            states=sample["states"].unsqueeze(0),
-            actions=sample["actions"].unsqueeze(0),
-            next_states=sample["next_states"].unsqueeze(0),
-            rewards=sample["rewards"].unsqueeze(0)
+            query_state=sample["query_state"],
+            states=sample["states"],
+            actions=sample["actions"],
+            next_states=sample["next_states"],
+            rewards=sample["rewards"]
         )
         predictions = model.get_predictions(outputs)
         targets = sample["target_action"].unsqueeze(0)
@@ -161,7 +161,7 @@ def run(model, sample, n_steps=15):
     else:
         results = model.run(
             query_state=sample["query_state"],
-            problem=sample["problem"],
+            problems=sample["problem"],
             n_steps=n_steps, #model.config["model_params"]["seq_len"]+1,
             do_sample=model.config["do_sample"],
             temperature_function=lambda x: model.config["temperature"]
@@ -171,15 +171,15 @@ def run(model, sample, n_steps=15):
         sample["next_states"] = results["next_states"]
         sample["rewards"] = results["rewards"]
 
-        outputs = results["outputs"].unsqueeze(0)
-        predictions = results["next_states"].unsqueeze(0)
+        outputs = results["outputs"]
+        predictions = results["next_states"]
         targets = sample["target_state"].unsqueeze(0)
         metrics = model.get_metrics(outputs, targets, predictions)
 
-    return sample, outputs.squeeze(0), predictions.squeeze(0), metrics
+    return sample, outputs, predictions, metrics
 
 def print_metrics(metrics):
     tab = ' ' * 4
     print('metrics:')
     for key, val in metrics.items():
-        print(f'{tab}{key} = {val.item():.6f}')
+        print(f'{tab}{key} = {val[-1].item():.6f}')
