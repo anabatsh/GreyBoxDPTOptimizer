@@ -14,7 +14,7 @@ except ImportError:
 try:
     from heavyball import PaLMForeachSFAdamW
 except ImportError:
-    ForeachCachedPSGDKron = None
+    PaLMForeachSFAdamW = None
 
 import numpy as np
 

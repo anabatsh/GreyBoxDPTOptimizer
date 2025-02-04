@@ -1,3 +1,4 @@
+from os import replace
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -64,7 +65,7 @@ class OfflineDataset(OnlineDataset):
         # rewards[mask] = x_next[indices[mask], actions[mask]] == problem.info["x_min"][actions[mask]]
         # rewards[~mask] = np.all(x_next[indices[~mask]] == problem.info["x_min"][None, :], -1)
 
-        # # rewards - 1, если достигли минимума, иначе 0: [seq_len]
+        # rewards - 1, если достигли минимума, иначе 0: [seq_len]
         # rewards = np.zeros(self.seq_len)
         # rewards[y_next == problem.info["y_min"]] = 1.0
 
@@ -79,18 +80,23 @@ class OfflineDataset(OnlineDataset):
         rewards = alpha * reward_exploit + (1 - alpha) * reward_explore
 
         # query state: [state_dim]
-    
+
         # до target_action совпадает с минимумом, в target_action отличается, после - произвольный
         # query_x = problem.info["x_min"].copy()
         # if target_action < problem.d:
         #     query_x[target_action] = problem.info["x_min"][target_action] ^ 1
         #     query_x[target_action+1:] = np.random.randint(0, problem.n, size=problem.d-target_action-1)
 
-        # рандомный x "рядом" с argmin
-        query_x = problem.info["x_min"].copy()
-        n_corrupt_indices = np.random.binomial(problem.d, 0.4)
-        corrupt_indices = np.random.randint(0, problem.d, size=(n_corrupt_indices))
-        query_x[corrupt_indices] ^= 1
+        # рандомный x "рядом" с argmin - если argmin есть.
+        if problem.info["x_min"]:
+            query_x = problem.info["x_min"].copy()
+            n_corrupt_indices = np.random.binomial(problem.d, 0.4)
+            corrupt_indices = np.random.choice(np.arange(problem.d), size=n_corrupt_indices, replace=False) 
+            query_x[corrupt_indices] ^= 1
+        else:
+            # рандомный x
+            query_x = np.random.randint(0, problem.n, size=(problem.d))
+
         y = problem.target(query_x)
         query_state = np.hstack([query_x, y])
 

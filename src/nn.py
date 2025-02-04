@@ -90,13 +90,14 @@ def get_relative_positions(seq_len: int) -> torch.tensor:
 
 
 class CausalSelfAttention(nn.Module):
-    def __init__(self, hidden_dim, num_heads, dropout, max_seq_len, 
-            prefix_size=1, with_alibi=False, normalize_qk=True):
+    def __init__(self, hidden_dim, num_heads, dropout, max_seq_len, with_alibi=False, normalize_qk=True):
         super().__init__()
         self.in_proj = nn.Linear(hidden_dim, hidden_dim * 3)
         self.out_proj = nn.Linear(hidden_dim, hidden_dim)
         self.attn_drop = dropout
-        self.attn_drop_2 = nn.Dropout(p=dropout)
+        self.attn_drop_fn = nn.Dropout(p=dropout)
+
+        self.use_sdpa = True
 
         self.register_buffer(
             "causal_mask", torch.triu(-torch.inf * torch.ones(1, 1, max_seq_len, max_seq_len), diagonal=1)
@@ -119,13 +120,15 @@ class CausalSelfAttention(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
 
-    def forward(self, x, use_sdpa=True):
+    def forward(self, x):
         B, L, D = x.size()
         query, key, value = self.in_proj(x).split(self.hidden_dim, dim=-1)
+        # [B, L, D] -> [B, nH, L, hD]
         query = query.reshape(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
         key = key.reshape(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
         value = value.reshape(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
 
+        # normalizing q,k, see: https://arxiv.org/abs/2302.05442
         if self.normalize_qk:
             query, key = self.q_norm(query), self.k_norm(key)
 
@@ -133,13 +136,13 @@ class CausalSelfAttention(nn.Module):
         if self.with_alibi:
             attn_bias = attn_bias + (self.alibi_slopes[:, None, None] * get_relative_positions(L)[None, :].to(self.alibi_slopes.device))
 
-        if use_sdpa:
+        if self.use_sdpa:
             out = F.scaled_dot_product_attention(query, key, value, attn_mask=attn_bias, dropout_p=self.attn_drop if self.training else 0)
         else:
             attn = (query @ key.transpose(-2, -1)) * (1 / (key.size(-1) ** 0.5))
             attn += attn_bias
             attn = F.softmax(attn, dim=-1)
-            out = self.attn_drop_2(attn) @ value
+            out = self.attn_drop_fn(attn) @ value
         out = out.transpose(1, 2).reshape(B, L, D)
         out = self.out_proj(out)
 

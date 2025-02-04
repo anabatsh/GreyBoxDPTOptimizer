@@ -26,7 +26,7 @@ class QUBO(Problem):
     """
     Quadratic Binary Optimization Problem: x^TQx -> min_x
     """
-    def __init__(self, d=1, n=2, seed=0, **kwargs):
+    def __init__(self, d=1, n=2, seed=0, lazy=True, target=None, **kwargs):
         """
         Additional Input:
             seed - (int) random seed to determine Q
@@ -34,12 +34,15 @@ class QUBO(Problem):
         super().__init__(d, n)
         np.random.seed(seed)
         self.Q = np.triu(np.random.randn(d, d))
+        self.info = {"x_min": None, "y_min": target}
 
-        x = int2base(np.arange(0, n ** d), d, n)
-        y = self.target(x, device='cpu')
-        i_best = y.argmin().item()
-        self.info = {"x_min": x[i_best], "y_min": y[i_best]}
-        del x
+        if not lazy:
+            x = int2base(np.arange(0, n ** d), d, n)
+            y = self.target(x, device='cpu')
+            i_best = y.argmin().item()
+            self.info = {"x_min": x[i_best], "y_min": y[i_best]}
+            del x
+
 
     def target(self, x_in, device='cpu'):
         x = torch.tensor(x_in.copy(), device=device, dtype=torch.float32)
