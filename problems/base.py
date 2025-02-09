@@ -1,5 +1,6 @@
 import dill
 
+
 class Problem():
     """
     Base class for an optimization problem. 
@@ -12,6 +13,7 @@ class Problem():
         """
         self.d = d
         self.n = n
+        self.name = f"{self.__class__.__name__}_n_{self.n}_d_{self.d}"
 
     def target(self, x):
         """
@@ -27,11 +29,9 @@ class ProblemSet():
     def __init__(self, problems: list[Problem]):
         self.problems = problems
 
-
 def serialize_problem_set(problem_set, filename):
     with open(filename, 'wb+') as f:
         dill.dump(problem_set, f)
-
 
 def deserialize_problem_set(filename):
     with open(filename, 'rb') as f:

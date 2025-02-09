@@ -2,6 +2,8 @@ import os
 import yaml
 import random
 from functools import partial
+from tqdm.auto import tqdm
+
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
@@ -9,18 +11,10 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.strategies import FSDPStrategy
 from lightning.pytorch import seed_everything, LightningDataModule
 
-from src.data import OfflineDataset, OnlineDataset
-from src.train import DPTSolver
+from dpt import *
 import problems as pbs
-
-from tqdm.auto import tqdm
-from src.nn import TransformerBlock
-
-torch.backends.cuda.enable_flash_sdp(True)
-torch.set_float32_matmul_precision("high")
 
 os.environ['WANDB_SILENT'] = "true"
 
@@ -48,27 +42,41 @@ class ProblemDataModule(LightningDataModule):
 
     def prepare_data(self):
         # This method is called only once, regardless of the number of GPUs
-        problem_class = getattr(pbs, self.config["problem_params"]["problem"])
-        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items()) if k != "use_problems") + ".dill"
-        data_path = os.path.join("data", data_path)
+        problem_class = getattr(pbs, self.config["problem"])
+        params = "_".join(f"{k}_{v}" for k, v in self.config["problem_params"].items())
+        data_path = os.path.join(self.config["data_path"], self.config["problem"] + '_' + params)
         if not os.path.exists(data_path):
+            os.makedirs(data_path, exist_ok=True)
             print("Generating dataset...")
-            problem_set = pbs.ProblemSet([problem_class(**self.config["problem_params"], seed=i) for i in tqdm(range(self.config["problem_params"]["n_problems"]))])
-            pbs.serialize_problem_set(problem_set, data_path)
-            print(f"Saved problem set to {data_path}")
+            n_train = self.config["n_train_problems"]
+            n_val = self.config["n_val_problems"]
+            n_test = self.config["n_test_problems"]
+            problems = [problem_class(**self.config["problem_params"], seed=i) for i in tqdm(range(n_train + n_val + n_test))]
+            train_problemset = pbs.ProblemSet(problems[:n_train])
+            val_problemset = pbs.ProblemSet(problems[n_train:n_train + n_val])
+            test_problemset = pbs.ProblemSet(problems[n_train + n_val:])
+            pbs.serialize_problem_set(train_problemset, os.path.join(data_path, "train.dill"))
+            pbs.serialize_problem_set(val_problemset, os.path.join(data_path, "val.dill"))
+            pbs.serialize_problem_set(test_problemset, os.path.join(data_path, "test.dill"))
+            print(f"Saved problem sets to {data_path}")
 
     def setup(self, stage=None):
-        data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items()) if k != "use_problems") + ".dill"
-        data_path = os.path.join("data", data_path)
-        self.problems = pbs.deserialize_problem_set(data_path).problems[-self.config["problem_params"]["use_problems"]:]
         # This method is called on every GPU, but the data is already prepared
-        val_size = int(len(self.problems) * 0.2)
-        # random.shuffle(self.problems)
-        self.train_problems = self.problems[:-val_size]
-        self.val_problems = self.problems[-val_size:]
+        problem_class = getattr(pbs, self.config["problem"])
+        self.collate_fn = partial(custom_collate_fn, problem_class=problem_class)
+
+        params = "_".join(f"{k}_{v}" for k, v in self.config["problem_params"].items())
+        data_path = os.path.join(self.config["data_path"], self.config["problem"] + '_' + params)
+
+        self.train_problems = pbs.deserialize_problem_set(os.path.join(data_path, "train.dill")).problems
+        self.val_problems = pbs.deserialize_problem_set(os.path.join(data_path, "val.dill")).problems
+        self.test_problems = pbs.deserialize_problem_set(os.path.join(data_path, "test.dill")).problems
+    
+        print(f'train_problems: {len(self.train_problems)}')
+        print(f'val_problems: {len(self.val_problems)}')
+        print(f'test_problems: {len(self.test_problems)}')
 
     def train_dataloader(self):
-        collate_fn = partial(custom_collate_fn, problem_class=getattr(pbs, self.config["problem_params"]["problem"]))
         train_offline_dataset = OfflineDataset(
             problems=self.train_problems,
             seq_len=self.config["model_params"]["seq_len"]
@@ -79,26 +87,24 @@ class ProblemDataModule(LightningDataModule):
             num_workers=self.config["num_workers"],
             pin_memory=True,
             shuffle=True,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn
         )
 
     def val_dataloader(self):
-        collate_fn = partial(custom_collate_fn, problem_class=getattr(pbs, self.config["problem_params"]["problem"]))
         val_offline_dataset = OfflineDataset(
             problems=self.val_problems,
             seq_len=self.config["model_params"]["seq_len"]
         )
         return DataLoader(
-                dataset=val_offline_dataset,
-                batch_size=self.config["batch_size"],
-                num_workers=self.config["num_workers"],
-                pin_memory=True,
-                shuffle=False,
-                collate_fn=collate_fn
-            )
+            dataset=val_offline_dataset,
+            batch_size=self.config["batch_size"],
+            num_workers=self.config["num_workers"],
+            pin_memory=True,
+            shuffle=False,
+            collate_fn=self.collate_fn
+        )
 
     def test_dataloader(self):
-        collate_fn = partial(custom_collate_fn, problem_class=getattr(pbs, self.config["problem_params"]["problem"]))
         val_online_dataset = OnlineDataset(self.val_problems)
         return DataLoader(
             dataset=val_online_dataset,
@@ -106,15 +112,15 @@ class ProblemDataModule(LightningDataModule):
             num_workers=self.config["num_workers"],
             pin_memory=True,
             shuffle=False,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn
         )
 
 def train(config):
     logger = WandbLogger(**config["wandb_params"])
     model = DPTSolver(config)
     datamodule = ProblemDataModule(config)
-    fsdp_wrap_policy = {TransformerBlock}
-    checkpoint_callback = ModelCheckpoint(every_n_epochs=50, save_top_k=-1, filename='{epoch}')
+
+    # checkpoint_callback = ModelCheckpoint(every_n_epochs=50, save_top_k=-1, filename='{epoch}')
     trainer = L.Trainer(
         logger=logger,
         precision=config["precision"],
@@ -122,17 +128,11 @@ def train(config):
         log_every_n_steps=config["log_every_n_steps"],
         default_root_dir=config["wandb_params"]["save_dir"],
         enable_model_summary=True,
-        callbacks=[checkpoint_callback],
-        use_distributed_sampler=False,
-        strategy=FSDPStrategy(sharding_strategy="SHARD_GRAD_OP", auto_wrap_policy=fsdp_wrap_policy),
-        # strategy="ddp",
+        # callbacks=[checkpoint_callback]
         # deterministic=True
     )
-    trainer.fit(
-        model=model,
-        datamodule=datamodule,
-    )
-    trainer.test(model, datamodule=datamodule)
+    trainer.fit(model=model, datamodule=datamodule)
+    # trainer.test(model, datamodule=datamodule)
 
 if __name__ == '__main__':
     config = load_config('config.yaml')

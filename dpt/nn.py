@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+
 class SwiGLUMLP(nn.Module):
     def __init__(self, hidden_size, intermediate_size, bias: bool = False):
         super().__init__()
@@ -16,19 +17,17 @@ class SwiGLUMLP(nn.Module):
     def forward(self, hidden_state):
         return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
 
+# class GeLUMLP(nn.Module):
+#     def __init__(self, hidden_size, intermediate_size, bias: bool = False):
+#         super().__init__()
+#         self.hidden_size = hidden_size
+#         self.intermediate_size = intermediate_size
+#         self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=bias)
+#         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=bias)
+#         self.act_fn = nn.GELU()
 
-class GeLUMLP(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, bias: bool = False):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=bias)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=bias)
-        self.act_fn = nn.GELU()
-
-    def forward(self, hidden_state):
-        return self.down_proj(self.act_fn(self.up_proj(hidden_state)))
-
+#     def forward(self, hidden_state):
+#         return self.down_proj(self.act_fn(self.up_proj(hidden_state)))
 
 class TransformerBlock(nn.Module):
     def __init__(

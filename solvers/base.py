@@ -1,6 +1,4 @@
 import numpy as np
-import os
-import json
 from time import perf_counter as tpc
 
 LARGE_CONST = 1e+5
@@ -50,8 +48,9 @@ class Logger:
             self.logs['x_best'] = np.array(x_best, dtype=np.int32).tolist()
             self.logs['c_best'] = bool(c_best)
             self.logs['t_best'] = tpc() - self.t_start
+
         self.logs['m_list'].append(int(m))
-        self.logs['y_list'].append(float(y_best))
+        self.logs['y_list'].append(self.logs['y_best'])
 
 class Solver():
     """
@@ -71,6 +70,7 @@ class Solver():
         self.k_init = k_init
         self.k_samples = k_samples
         self.init_settings(seed)
+        self.name = f"{self.__class__.__name__}"
 
     def init_settings(self, seed=0):
         """

@@ -40,3 +40,4 @@ To visualize a problem, one could simply call the `show_problem` method from the
 ```python
 show_problem(problem, save_dir)
 ```
+
