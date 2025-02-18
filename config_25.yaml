@@ -1,0 +1,58 @@
+wandb_params:
+    project: "DPT_3"
+    group: "QUBO"
+    name: null
+    entity: null
+    save_dir: "results/"
+
+model_params:
+    state_dim: 26
+    action_dim: 25
+    seq_len: 200
+    hidden_dim: 512
+    num_layers: 4
+    num_heads: 4
+    attention_dropout: 0.5
+    residual_dropout: 0.1
+    embedding_dropout: 0.3
+    with_alibi: true
+
+optimizer_params:
+    lr: 0.005
+    weight_decay: 5.e-5
+    eps: 1.e-7
+    warmup_steps: 250
+    betas: [0.9, 0.99]
+
+with_scheduler: false
+scheduler_params:
+    warmup_epochs: 5
+
+parallel: true
+ad_max_eps: 0.9
+
+label_smoothing: 0.05
+precision: bf16-mixed
+max_epochs: 500
+log_every_n_steps: 1
+seed: 42
+# clip_grad: null
+do_sample: false
+temperature: 1
+
+batch_size: 512
+num_workers: 12
+
+online_steps: 50
+strategy: ddp
+
+problem_params:
+    problem: "QUBO"
+    d: 25
+    n: 2
+    n_problems: 31000
+    use_problems: 31000
+    n_probes: 10
+    solver: "gurobi"
+    # m: 1
+    dist: "normal"

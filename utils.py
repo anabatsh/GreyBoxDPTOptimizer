@@ -33,7 +33,7 @@ def read_problemset(read_dir, problems):
 
     return logs_accumulated
 
-def plot_logs(logs, problems, solvers=[]):
+def plot_logs(logs, problems, plot_gt=False, solvers=[], title=""):
     solvers = solvers if len(solvers) else logs.keys()
 
     cmap = plt.get_cmap('jet')
@@ -47,9 +47,11 @@ def plot_logs(logs, problems, solvers=[]):
         #     val['y_list (mean)'] + val['y_list (std)'], 
         #     color=c, alpha=0.2
         # )
-    plt.title(f"{len(problems)} problems")
-    gt = np.mean([problem.info['y_min'] for problem in problems])
+    plt.title(f"{title}, {len(problems)} problems")
     _, xmax = plt.gca().get_xlim()
-    plt.hlines(gt, 0, xmax, colors='black', linestyle='--', label="Ground Truth", zorder=0)
+    if plot_gt:
+        gt = np.mean([problem.info['y_min'] for problem in problems])
+        plt.hlines(gt, 0, xmax, colors='black', linestyle='--', label="Ground Truth", zorder=0)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.8))
+    # plt.tight_layout()
     plt.show()

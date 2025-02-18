@@ -38,6 +38,7 @@ class TransformerBlock(nn.Module):
         attention_dropout: float,
         residual_dropout: float,
         pre_norm: bool = True,
+        with_alibi: bool = False,
     ):
         super().__init__()
         self.norm1 = nn.LayerNorm(hidden_dim)
@@ -50,6 +51,7 @@ class TransformerBlock(nn.Module):
             num_heads=num_heads,
             dropout=attention_dropout,
             max_seq_len=max_seq_len,
+            with_alibi=with_alibi,
         )
         self.mlp = SwiGLUMLP(hidden_dim, int(7 / 2 * hidden_dim), bias=True)
         self.pre_norm = pre_norm
@@ -60,9 +62,8 @@ class TransformerBlock(nn.Module):
             x = x + self.drop1(self.attention(self.norm1(x)))
             x = x + self.drop2(self.mlp(self.norm2(x)))
         else:
-            attention_out = self.attention(x)
-            x = self.norm1(x + self.drop(attention_out))
-            x = self.norm2(x + self.mlp(x))
+            x = self.norm1(x + self.drop1(self.attention(x)))
+            x = self.norm2(x + self.drop2(self.mlp(x)))
         return x
 
 
@@ -88,6 +89,18 @@ def get_relative_positions(seq_len: int) -> torch.tensor:
     return x - y
 
 
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
+    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(self, hidden_dim, num_heads, dropout, max_seq_len, with_alibi=False, normalize_qk=True):
         super().__init__()
@@ -96,10 +109,12 @@ class CausalSelfAttention(nn.Module):
         self.attn_drop = dropout
         self.attn_drop_fn = nn.Dropout(p=dropout)
 
-        self.use_sdpa = True
+        self.attn_implementation = "flash" # "sdpa", "naive"
 
         self.register_buffer(
-            "causal_mask", torch.triu(-torch.inf * torch.ones(1, 1, max_seq_len, max_seq_len), diagonal=1)
+            "causal_mask", 
+            torch.triu(-torch.inf * torch.ones(1, 1, max_seq_len, max_seq_len), diagonal=1),
+            persistent=False
         )
         self.with_alibi = with_alibi
         if with_alibi:
@@ -121,6 +136,8 @@ class CausalSelfAttention(nn.Module):
 
     def forward(self, x):
         B, L, D = x.size()
+        if self.causal_mask.size(-1) < L:
+            self.causal_mask = torch.triu(-torch.inf * torch.ones(1, 1, L, L), diagonal=1)
         query, key, value = self.in_proj(x).split(self.hidden_dim, dim=-1)
         # [B, L, D] -> [B, nH, L, hD]
         query = query.reshape(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
@@ -132,10 +149,10 @@ class CausalSelfAttention(nn.Module):
             query, key = self.q_norm(query), self.k_norm(key)
 
         attn_bias = self.causal_mask[:, :, :L, :L]
-        if self.with_alibi:
+        if self.with_alibi and self.alibi_slopes is not None:
             attn_bias = attn_bias + (self.alibi_slopes[:, None, None] * get_relative_positions(L)[None, :].to(self.alibi_slopes.device))
 
-        if self.use_sdpa:
+        if self.attn_implementation == "sdpa":
             out = F.scaled_dot_product_attention(query, key, value, attn_mask=attn_bias, dropout_p=self.attn_drop if self.training else 0)
         else:
             attn = (query @ key.transpose(-2, -1)) * (1 / (key.size(-1) ** 0.5))

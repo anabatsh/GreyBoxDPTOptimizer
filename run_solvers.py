@@ -4,7 +4,7 @@ import numpy as np
 from tqdm.auto import tqdm
 
 
-def run(save_dir, problems, solvers, n_runs=10):
+def run_solvers(save_dir, problems, solvers, n_runs=10):
     # for every problem in the problem set
     for problem in tqdm(problems, total=len(problems)):
 
