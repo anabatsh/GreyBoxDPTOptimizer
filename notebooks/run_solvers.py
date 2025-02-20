@@ -2,6 +2,7 @@ import os
 import json
 import argparse
 import numpy as np
+from tqdm import tqdm
 from collections import defaultdict
 from create_problems import *
 
@@ -11,15 +12,15 @@ sys.path.insert(0, root_path)
 import solvers as slv
 
 
-def run_solvers(problems, solver_names, save_path, n_runs=1, keys=[]):
+def run_solvers(problems, solver_names, save_path, budget, n_runs=1, keys=[]):
         results = {}
-        for problem in problems:
+        for problem in tqdm(problems):
             results[problem.name] = {}
             for solver_name in solver_names:
                 solver_class = getattr(slv, solver_name)
                 results[problem.name][solver_name] = defaultdict(list)
                 for seed in range(n_runs):
-                    solver = solver_class(problem, budget=5, seed=seed)
+                    solver = solver_class(problem, budget=budget, seed=seed)
                     logs = solver.optimize()
                 for key in keys if len(keys) else logs.keys():
                     results[problem.name][solver.name][key].append(logs[key])
@@ -55,7 +56,7 @@ def set_info(problems, best_results):
     for problem in problems:
         problem.info = best_results[problem.name]
 
-def main(problem_names, solver_names, read_dir, save_dir, suffix, n_runs, keys=[]):
+def main(problem_names, solver_names, read_dir, save_dir, suffix, budget, n_runs, keys=[]):
     for problem_name in problem_names:
         read_path = os.path.join(read_dir, problem_name, suffix)
         problems = load_problem_set(read_path)
@@ -65,7 +66,7 @@ def main(problem_names, solver_names, read_dir, save_dir, suffix, n_runs, keys=[
             os.makedirs(save_path, exist_ok=True)
         save_path = os.path.join(save_path, suffix)
 
-        run_solvers(problems, solver_names, save_path, n_runs, keys)
+        run_solvers(problems, solver_names, save_path, budget, n_runs, keys)
         results = load_results(save_path)
         best_results = get_best_results(results)
         set_info(problems, best_results)
@@ -83,14 +84,15 @@ if __name__ == '__main__':
     ]
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--n_runs', type=int, default=1)
+    parser.add_argument('--n_runs', type=int, default=5)
     parser.add_argument('--read_dir', type=str, default="../data")
     parser.add_argument('--save_dir', type=str, default="../results")
     parser.add_argument('--suffix', type=str, default="test")
+    parser.add_argument('--budget', type=int, default=1000)
     parser.add_argument('--problems', nargs='+', default=default_problems)
     parser.add_argument('--solvers', nargs='+', default=default_solvers)
 
     # Parse arguments
     args = parser.parse_args()
 
-    main(args.problems, args.solvers, args.read_dir, args.save_dir, args.suffix, args.n_runs)
+    main(args.problems, args.solvers, args.read_dir, args.save_dir, args.suffix, args.budget, args.n_runs)

@@ -100,9 +100,14 @@ class NumberPartitioning(QUBOBase):
     
 class GraphColoring(QUBOBase):
     def generate_Q(self):
-        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        n_color = 3
+        assert self.d >= 9, "GraphColoring problem requires d >= 9"
+        d = self.d // n_color
+        graph = nx.fast_gnp_random_graph(n=d, p=0.5, seed=self.seed)
         g = qubogen.Graph.from_networkx(graph)
-        Q = qubogen.qubo_graph_coloring(g, n_color=3)
+        Q = qubogen.qubo_graph_coloring(g, n_color=n_color)
+        pad = self.d - d * n_color
+        Q = np.pad(Q, ((0, pad), (0, pad)))
         Q = torch.tensor(Q).float()
         return Q
 
@@ -117,9 +122,12 @@ def qubo_qap(flow: np.ndarray, distance: np.ndarray, penalty=10.):
 
 class QAP(QUBOBase):
     def generate_Q(self):
+        d = int(np.sqrt(self.d))
         rand = np.random.default_rng(self.seed)
-        flow = rand.random((self.d, self.d))
-        distance = rand.random((self.d, self.d))
+        flow = rand.random((d, d))
+        distance = rand.random((d, d))
         Q = qubo_qap(flow=flow, distance=distance)
+        pad = self.d - d ** 2
+        Q = np.pad(Q, ((0, pad), (0, pad)))
         Q = torch.tensor(Q).float()
         return Q

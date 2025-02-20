@@ -46,11 +46,11 @@ if __name__ == '__main__':
     ]
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--d', type=int, default=5, help='d')
+    parser.add_argument('--d', type=int, default=50, help='d')
     parser.add_argument('--n', type=int, default=2, help='n')
-    parser.add_argument('--n_test', type=int, default=10)
-    parser.add_argument('--n_val', type=int, default=10)
-    parser.add_argument('--n_train', type=int, default=50)
+    parser.add_argument('--n_test', type=int, default=100)
+    parser.add_argument('--n_val', type=int, default=100)
+    parser.add_argument('--n_train', type=int, default=5000)
     parser.add_argument('--save_dir', type=str, default="../data")
     parser.add_argument('--problems', nargs='+', default=default_problems)
 
