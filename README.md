@@ -1,13 +1,22 @@
-### Decision Pretrained Transformer
-
-To run DPT one simply needs execute the following command:
+### Decision Pretrained Transformer for Black Box Optimization
 
 ````bash
+python create_problems.py
+python run_solvers.py
 python run.py
 ````
 
----
+Run `create_problems` to create a train, val and test sets for various QUBO problems. Then, run `run_solvers` to run all solvers on the test set. Finally, run `run` to choose the best optimizer and run it in the train and val sets.
+Thus, a value `info` in every problem (from train, val and test sets) would be defined. 
 
+<!-- To run DPT one simply needs execute the following command:
+
+````bash
+python run.py
+```` -->
+
+---
+<!-- 
 ### Grey Box
 
 A repo for solving **Integer Nonlinear Optimization** problems:
@@ -39,5 +48,5 @@ To visualize a problem, one could simply call the `show_problem` method from the
 
 ```python
 show_problem(problem, save_dir)
-```
+``` -->
 

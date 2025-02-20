@@ -35,10 +35,11 @@ if __name__ == '__main__':
     ]
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--n_runs', type=int, default=1)
     parser.add_argument('--problem_dir', type=str, default="../data")
     parser.add_argument('--results_dir', type=str, default="../results")
     parser.add_argument('--suffix', type=str, default="test")
+    parser.add_argument('--budget', type=int, default=1000)
+    parser.add_argument('--n_runs', type=int, default=1)
     parser.add_argument('--problems', nargs='+', default=default_problems)
 
     # Parse arguments
@@ -53,10 +54,12 @@ if __name__ == '__main__':
         main(
             [problem_name], [solver_best], 
             args.problem_dir, args.results_dir, "val", 
-            n_runs=args.n_runs, keys=['x_best', 'y_best']
+            budget=args.budget, n_runs=args.n_runs, 
+            keys=['x_best', 'y_best']
         )
         main(
             [problem_name], [solver_best], 
             args.problem_dir, args.results_dir, "train", 
-            n_runs=args.n_runs, keys=['x_best', 'y_best']
+            budget=args.budget, n_runs=args.n_runs, 
+            keys=['x_best', 'y_best']
         )
