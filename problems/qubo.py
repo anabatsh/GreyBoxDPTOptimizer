@@ -1,81 +1,125 @@
 import torch
-from .base import Problem
-import gurobipy as gp
 import numpy as np
-from gurobipy import GRB
+import qubogen
+import networkx as nx
+from .base import Problem
 
-def int2base(x, d, n):
-    """
-    Convert a given decimal x to a vector of length d in base-n system
-    """
-    i = []
-    for _ in range(d):
-        i.append(x % n)
-        x //= n
-    return list(reversed(i))
 
-class QUBO(Problem):
+class QUBOBase(Problem):
     """
     Quadratic Binary Optimization Problem: x^TQx -> min_x
     """
-    def __init__(self, d=1, n=2, n_probes=500, seed=0, bound=50, density=0.5,
-                 solver="brute", target=None, device='cpu', **kwargs):
+    def __init__(self, d=1, n=2, seed=0, **kwargs):
         """
         Additional Input:
             seed - (int) random seed to determine Q
         """
         super().__init__(d, n)
-        self.device = device
-        self.generator = torch.Generator()
-        self.generator.manual_seed(seed)
-        self.d = d
-        self.n = n
-        self.Q = torch.triu(torch.randn(d, d, generator=self.generator, dtype=torch.float, device=self.device))
+        self.seed = seed
         self.name += f"__seed_{seed}"
-        self.info = {"x_min": None, "y_min": target}
-        self.solver = solver
-        self.n_probes = n_probes
-        if solver:
-            self.find_target()
+        self.Q = self.generate_Q()
 
-    def find_target(self):
-        if self.solver == 'brute':
-            x = torch.tensor([int2base(i, self.d, self.n) for i in range(self.n ** self.d)], device=self.device)
-            y = self.target(x)
-            i_best = torch.argmin(y).item()
-            self.info = {"x_min": x[i_best], "y_min": y[i_best]}
-        elif self.solver == 'gurobi':
-            intermediate_solutions = []
-
-            def solutions_callback(model, where):
-                if where == GRB.Callback.MIPNODE:
-                    status = model.cbGet(GRB.Callback.MIPNODE_STATUS)
-                    if status in {GRB.OPTIMAL, GRB.SUBOPTIMAL}:
-                        x_val = model.cbGetNodeRel(x)
-                        x_array = [int(round(x_val[i])) for i in range(self.d)]
-                        intermediate_solutions.append(x_array)
-
-            model = gp.Model("qubo")
-            x = model.addVars(self.d, vtype=GRB.BINARY, name="x")
-            obj = gp.quicksum(self.Q[i, j].item() * x[i] * x[j] for i in range(self.d) for j in range(self.d))
-            model.setObjective(obj, GRB.MINIMIZE)
-            model._x = x
-            model.Params.OutputFlag = 0
-            model.setParam(GRB.Param.PoolSearchMode, 1)
-            model.setParam(GRB.Param.PoolSolutions, self.n_probes)
-            model.setParam(GRB.Param.PoolGap, 0.5)
-            model.setParam(GRB.Param.IterationLimit, 50000)
-            model.optimize(solutions_callback)
-
-            self.x_probes = torch.tensor(intermediate_solutions, device=self.device, dtype=torch.float)
-            if self.x_probes.numel():
-                self.y_probes = self.target(self.x_probes)
-            x_min = torch.tensor([float(x[i].X) for i in range(self.d)], device=self.device)
-            self.info = {"x_min": x_min, "y_min": self.target(x_min)}
-        else:
-            raise NotImplementedError(f"solver {self.solver} not implemented for {self.__class__.__name__}")
+    def generate_Q(self):
+        pass
 
     def target(self, x):
-        if not isinstance(self.Q, torch.Tensor):
-            self.Q = torch.tensor(self.Q, dtype=torch.float)
-        return ((x @ self.Q.to(x.device)) * x).sum(dim=-1).to(x.device)
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x).float()
+        Q = self.Q.to(x.device)
+        return ((x @ Q) * x).sum(dim=-1)
+
+class QUBO(QUBOBase):
+    def generate_Q(self):
+        generator = torch.Generator()
+        generator.manual_seed(self.seed)
+        Q = torch.triu(torch.randn(self.d, self.d, dtype=torch.float, generator=generator))
+        return Q
+
+class Knapsack(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        values = np.diag(rand.random(self.d))
+        weights = rand.random(self.d)
+        weight_limit = np.mean(weights)
+        Q = qubogen.qubo_qkp(value=values, a=weights, b=weight_limit)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class MaxCut(QUBOBase):
+    def generate_Q(self):
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        g = qubogen.Graph.from_networkx(graph)
+        Q = qubogen.qubo_max_cut(g=g)
+        Q = torch.tensor(Q).float()
+        return Q
+
+def qubo_wmax_cut(g, weights):
+    n_nodes = g.n_nodes
+    q = np.zeros((n_nodes, n_nodes))
+    i, j = g.edges.T
+    q[i, j] += weights
+    q[j, i] += weights
+    np.fill_diagonal(q, -q.sum(-1))
+    return q
+
+class WMaxCut(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        weights = rand.random(len(graph.edges))
+        g = qubogen.Graph.from_networkx(graph)
+        Q = qubo_wmax_cut(g=g, weights=weights)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class MVC(QUBOBase):
+    def generate_Q(self):
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        g = qubogen.Graph.from_networkx(graph)
+        Q = qubogen.qubo_mvc(g=g)
+        Q = torch.tensor(Q).float()
+        return Q
+
+class WMVC(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        g = qubogen.Graph.from_networkx(graph)
+        g.nodes = rand.random(self.d)
+        Q = qubogen.qubo_wmvc(g=g)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class NumberPartitioning(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        s = rand.random(self.d)
+        Q = qubogen.qubo_number_partition(number_set=s)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class GraphColoring(QUBOBase):
+    def generate_Q(self):
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        g = qubogen.Graph.from_networkx(graph)
+        Q = qubogen.qubo_graph_coloring(g, n_color=3)
+        Q = torch.tensor(Q).float()
+        return Q
+
+def qubo_qap(flow: np.ndarray, distance: np.ndarray, penalty=10.):
+    n = len(flow)
+    q = np.einsum("ij,kl->ikjl", flow, distance).astype(np.float32)
+    i = range(len(q))
+    q[i, :, i, :] += penalty
+    q[:, i, :, i] += penalty
+    q[i, i, i, i] -= 4 * penalty
+    return q.reshape(n ** 2, n ** 2)
+
+class QAP(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        flow = rand.random((self.d, self.d))
+        distance = rand.random((self.d, self.d))
+        Q = qubo_qap(flow=flow, distance=distance)
+        Q = torch.tensor(Q).float()
+        return Q

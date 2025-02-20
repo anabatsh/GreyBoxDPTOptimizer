@@ -50,7 +50,7 @@ class Logger:
             self.logs['t_best'] = tpc() - self.t_start
 
         self.logs['m_list'].append(int(m))
-        self.logs['y_list'].append(self.logs['y_best'])
+        self.logs['y_list'].append(float(y_best)) #self.logs['y_best'])
 
 class Solver():
     """

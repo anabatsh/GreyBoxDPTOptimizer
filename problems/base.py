@@ -13,7 +13,8 @@ class Problem():
         """
         self.d = d
         self.n = n
-        self.name = f"{self.__class__.__name__}_n_{self.n}_d_{self.d}"
+        self.name = f"{self.__class__.__name__}__n_{self.n}__d_{self.d}"
+        self.info = {"x_best": None, "y_best": None}
 
     def target(self, x):
         """
