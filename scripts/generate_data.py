@@ -27,7 +27,7 @@ parser.add_argument('--n_train', type=int, default=2500)
 parser.add_argument('--save_data_dir', type=str, default='../data/normal')
 parser.add_argument('--save_res_dir', type=str, default='../results/normal')
 parser.add_argument('--config', type=str, default='../configs/problem_normal.yaml')
-parser.add_argument('--max_workers', type=int, default=24)
+parser.add_argument('--max_workers', type=int, default=10)
 
 
 if __name__ == '__main__':
