@@ -24,6 +24,8 @@ problem_list:
   - problem: QUBO
     kwargs: {"mode": "von_mises", "loc": 1, "concentration": 1}
 
-solver: RandomSearch
-budget: 10
-n_runs: 1
+solver: 
+  name: RandomSearch
+  budget: 1000
+  n_runs: 3
+  full_info: False

@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 from functools import partial
+from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
 
 root_path = '../'
@@ -14,16 +15,19 @@ from scripts.update_info import main as update_info
 from utils import load_config
 
 
+NON_PARALLEL_BASTARDS = ['GUROBI', 'PROTES']
+
+
 parser = argparse.ArgumentParser(description='Load configuration file.')
 parser.add_argument('--d', type=int, default=50, help='d')
 parser.add_argument('--n', type=int, default=2, help='n')
-parser.add_argument('--n_test', type=int, default=10)
-parser.add_argument('--n_val', type=int, default=10)
-parser.add_argument('--n_train', type=int, default=100)
+parser.add_argument('--n_test', type=int, default=100)
+parser.add_argument('--n_val', type=int, default=100)
+parser.add_argument('--n_train', type=int, default=2500)
 parser.add_argument('--save_data_dir', type=str, default='../data/normal')
 parser.add_argument('--save_res_dir', type=str, default='../results/normal')
 parser.add_argument('--config', type=str, default='../configs/problem_normal.yaml')
-parser.add_argument('--max_workers', type=int, default=4)
+parser.add_argument('--max_workers', type=int, default=24)
 
 
 if __name__ == '__main__':
@@ -47,18 +51,32 @@ if __name__ == '__main__':
     # run solvers
     for suffix in ['test', 'val', 'train']:
         print(f'Running {config["solver"]["name"]} on {suffix} set')
-        process_map(
-            partial(
-                run_solver, 
-                read_dir=args.save_data_dir, 
-                save_dir=args.save_res_dir, 
-                suffix=suffix, 
-                solver=config['solver']['name'],
-                budget=config['solver']['budget'], 
-                n_runs=config['solver']['n_runs'], 
-                full_info=config['solver']['full_info']
-            ), problem_names, max_workers=args.max_workers
-        )
+        if config['solver']['name'] in NON_PARALLEL_BASTARDS:
+            print('[Single-process mode]')
+            for problem in tqdm(problem_names):
+                run_solver(
+                    problem,
+                    read_dir=args.save_data_dir, 
+                    save_dir=args.save_res_dir, 
+                    suffix=suffix, 
+                    solver=config['solver']['name'],
+                    budget=config['solver']['budget'], 
+                    n_runs=config['solver']['n_runs'], 
+                    full_info=config['solver']['full_info']
+                )
+        else:
+            process_map(
+                partial(
+                    run_solver, 
+                    read_dir=args.save_data_dir, 
+                    save_dir=args.save_res_dir, 
+                    suffix=suffix, 
+                    solver=config['solver']['name'],
+                    budget=config['solver']['budget'], 
+                    n_runs=config['solver']['n_runs'], 
+                    full_info=config['solver']['full_info']
+                ), problem_names, max_workers=args.max_workers
+            )
 
     # run update information
     print('Updating information')
