@@ -1,8 +1,17 @@
 import os
 import json
+import yaml
 import numpy as np
 from collections import defaultdict
 from matplotlib import pyplot as plt
+
+
+def load_config(config_path):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f'Config file not found: {config_path}')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
 
 
 def read_problem(read_path):

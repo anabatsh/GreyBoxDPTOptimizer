@@ -1,0 +1,29 @@
+problem_list:
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": 0, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "log_normal", "loc": 0, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "half_normal", "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "uniform", "low": 0, "high": 1}
+  - problem: QUBO
+    kwargs: {"mode": "beta", "concentration1": 0.5, "concentration0": 0.5}
+  - problem: QUBO
+    kwargs: {"mode": "cauchy", "loc": 0, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "gamma", "concentration": 1, "rate": 1}
+  - problem: QUBO
+    kwargs: {"mode": "gumbel", "loc": 1, "scale": 2}
+  - problem: QUBO
+    kwargs: {"mode": "laplace", "loc": 0, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "pareto", "scale": 1, "alpha": 1}
+  - problem: QUBO
+    kwargs: {"mode": "poisson", "rate": 4}
+  - problem: QUBO
+    kwargs: {"mode": "von_mises", "loc": 1, "concentration": 1}
+
+solver: RandomSearch
+budget: 10
+n_runs: 1

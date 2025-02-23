@@ -2,8 +2,35 @@ import torch
 import numpy as np
 import qubogen
 import networkx as nx
+from torch.distributions.normal import Normal #(mean, std) [0, 1]
+from torch.distributions.log_normal import LogNormal #(mean, std) [0, 1]
+from torch.distributions.half_normal import HalfNormal # scale 1
+from torch.distributions.uniform import Uniform #(low, high) [0, 1]
+from torch.distributions.beta import Beta #(concentration1, concentration0) 0.5 0.5
+from torch.distributions.cauchy import Cauchy # loc scale [0, 1]
+from torch.distributions.gamma import Gamma # concentration rate [1, 1]
+from torch.distributions.gumbel import Gumbel # loc, scale 1, 2
+from torch.distributions.laplace import Laplace # loc, scale [0, 1]
+from torch.distributions.pareto import Pareto # scale, alpha, [1, 1]
+from torch.distributions.poisson import Poisson # rate 4
+from torch.distributions.von_mises import VonMises # loc, concentration [1, 1]
 from .base import Problem
 
+
+DISTRIBUTIONS = {
+    'normal': Normal,
+    'log_normal': LogNormal,
+    'half_normal': HalfNormal,
+    'uniform': Uniform,
+    'beta': Beta,
+    'cauchy': Cauchy,
+    'gamma': Gamma,
+    'gumbel': Gumbel,
+    'laplace': Laplace,
+    'pareto': Pareto,
+    'poisson': Poisson,
+    'von_mises': VonMises
+}
 
 class QUBOBase(Problem):
     """
@@ -25,15 +52,44 @@ class QUBOBase(Problem):
     def target(self, x):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x).float()
+            Q = self.Q
+            return ((x @ Q) * x).sum(dim=-1).numpy()
+        
         Q = self.Q.to(x.device)
         return ((x @ Q) * x).sum(dim=-1)
 
 class QUBO(QUBOBase):
+    def __init__(self, d, n, seed=0, mode='normal', **kwargs):
+        self.mode = mode
+        self.distribution = DISTRIBUTIONS[mode](**kwargs)
+        super().__init__(d=d, n=n, seed=seed)
+
     def generate_Q(self):
-        generator = torch.Generator()
-        generator.manual_seed(self.seed)
-        Q = torch.triu(torch.randn(self.d, self.d, dtype=torch.float, generator=generator))
+        torch.manual_seed(self.seed)
+        Q = self.distribution.sample((self.d, self.d)).float()
+        Q = torch.triu(Q)
         return Q
+
+# class QUBO(QUBOBase):
+#     def __init__(self, distr="randn", distr_kwargs={}, **kwargs):
+#         self.distr = distr
+#         self.distr_kwargs = distr_kwargs
+#         super().__init__(**kwargs)
+
+#     def generate_Q(self):
+#         rand = np.random.default_rng(self.seed)
+#         distr = getattr(rand, self.distr)
+#         Q = distr(size=(self.d, self.d), **self.distr_kwargs)
+
+#         # d_flatten = self.d * (self.d + 1) // 2
+#         # q = torch.randn(d_flatten, generator=generator).float()
+#         # inds = torch.triu_indices(self.d, self.d)
+#         # Q = torch.zeros(self.d, self.d)
+#         # Q[inds[0], inds[1]] = q
+#         # Q = self.distribution.sample((self.d, self.d)).float()
+#         Q = torch.tensor(Q).float()
+#         Q = torch.triu(Q)
+#         return Q
 
 class Knapsack(QUBOBase):
     def generate_Q(self):
@@ -97,7 +153,7 @@ class NumberPartitioning(QUBOBase):
         Q = qubogen.qubo_number_partition(number_set=s)
         Q = torch.tensor(Q).float()
         return Q
-    
+
 class GraphColoring(QUBOBase):
     def generate_Q(self):
         n_color = 3
@@ -129,5 +185,22 @@ class QAP(QUBOBase):
         Q = qubo_qap(flow=flow, distance=distance)
         pad = self.d - d ** 2
         Q = np.pad(Q, ((0, pad), (0, pad)))
+        Q = torch.tensor(Q).float()
+        return Q
+    
+def qubo_max_clique(g, penalty=10.):
+    n_nodes = g.n_nodes
+    q = np.zeros((n_nodes, n_nodes))
+    i, j = g.edges.T
+    q[i, j] += penalty / 2.
+    q[j, i] += penalty / 2.
+    np.fill_diagonal(q, -1)
+    return q
+
+class MaxClique(QUBOBase):
+    def generate_Q(self):
+        graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
+        g = qubogen.Graph.from_networkx(graph)
+        Q = qubo_max_clique(g=g)
         Q = torch.tensor(Q).float()
         return Q

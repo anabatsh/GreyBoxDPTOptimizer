@@ -1,0 +1,21 @@
+problem_list:
+  - problem: QUBO
+    kwargs: {}
+  - problem: Knapsack
+    kwargs: {}
+  - problem: MaxCut
+    kwargs: {}
+  - problem: WMaxCut
+    kwargs: {}
+  - problem: MVC
+    kwargs: {}
+  - problem: WMVC
+    kwargs: {}
+  - problem: NumberPartitioning
+    kwargs: {}
+  - problem: GraphColoring
+    kwargs: {}
+  - problem: QAP
+    kwargs: {}
+  - problem: MaxClique
+    kwargs: {}

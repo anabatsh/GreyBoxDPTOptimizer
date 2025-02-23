@@ -1,0 +1,27 @@
+problem_list:
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": -20, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": -15, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": -10, "scale": 1}
+  - problem: QUBO 
+    kwargs: {"mode": "normal", "loc": -5, "scale": 1}
+  - problem: QUBO 
+    kwargs: {"mode": "normal", "loc": 0, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": 5, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": 10, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": 15, "scale": 1}
+  - problem: QUBO
+    kwargs: {"mode": "normal", "loc": 20, "scale": 1}
+  - problem: QUBO 
+    kwargs: {"mode": "normal", "loc": 25, "scale": 1}
+
+solver: 
+  name: RandomSearch
+  budget: 10
+  n_runs: 1
+  full_info: False

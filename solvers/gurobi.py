@@ -30,7 +30,7 @@ class GUROBI(Solver):
         model._x = x
         model.Params.OutputFlag = 0
         model.setParam(GRB.Param.PoolSearchMode, 1)
-        model.setParam(GRB.Param.PoolSolutions, self.budget)
+        model.setParam(GRB.Param.PoolSolutions, 500)
         model.setParam(GRB.Param.PoolGap, 0.5)
         model.setParam(GRB.Param.IterationLimit, 50000)
         model.optimize(solutions_callback)
