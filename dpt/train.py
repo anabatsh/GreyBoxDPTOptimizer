@@ -51,7 +51,7 @@ class DPTSolver(L.LightningModule):
         """
         offline training step
         """
-        batch["rewards"] = self.reward_model()
+        # batch["rewards"] = self.reward_model()
         outputs = self._offline_step(batch)
         results = self.get_loss(**outputs) | self.get_metrics(**outputs)
         for key, val in results.items():
@@ -139,8 +139,12 @@ class DPTSolver(L.LightningModule):
                 return {"x_mae": x_mae, "y_mae": y_mae}
 
         targets = targets.long()
-        accuracy = (predictions == targets[:, None]).float()
-        mae = torch.abs(predictions - targets[:, None]).float()
+        if targets.ndim == 1:
+            accuracy = (predictions == targets[:, None, None]).float()
+            mae = torch.abs(predictions - targets[:, None, None]).float()
+        else:
+            accuracy = (predictions == targets[:, None]).float()
+            mae = torch.abs(predictions - targets[:, None]).float()
         return {
             "accuracy": accuracy.mean(), 
             "accuracy_last": accuracy[:, -1].mean(),

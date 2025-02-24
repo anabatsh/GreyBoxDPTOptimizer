@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import torch
 import argparse
 import numpy as np
 from collections import defaultdict
@@ -20,8 +21,8 @@ def set_info(problems, results, solver):
         seed_best = np.argmin(logs["y_best"])
         suggested_info = {
             "solver": solver, 
-            "x_best": logs['x_best'][seed_best], 
-            "y_best": logs['y_best'][seed_best]
+            "x_best": torch.tensor(logs['x_best'][seed_best]).int(), 
+            "y_best": torch.tensor(logs['y_best'][seed_best]).float()
         }
         if problem.info is None or suggested_info["y_best"] < problem.info["y_best"]:
             problem.info = suggested_info

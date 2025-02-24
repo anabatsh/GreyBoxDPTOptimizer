@@ -20,14 +20,21 @@ class OnlineDataset(Dataset):
         query_state = torch.cat([x, y.unsqueeze(0)])
 
         # target_state
-        if problem.info["y_min"] is None and problem.solver is not None:
-            problem.find_target()
-        if problem.info["y_min"] is not None:
-            x = problem.info["x_min"]
-            y = problem.info["y_min"]
-            target_state = torch.cat([x, y.unsqueeze(0)])
-        else:
+        if problem.info is None:
             target_state = query_state
+        else:
+            x = problem.info["x_best"]
+            y = problem.info["y_best"]
+            target_state = torch.cat([x, y.unsqueeze(0)])
+
+        # if problem.info["y_min"] is None and problem.solver is not None:
+        #     problem.find_target()
+        # if problem.info["y_min"] is not None:
+        #     x = problem.info["x_min"]
+        #     y = problem.info["y_min"]
+        #     target_state = torch.cat([x, y.unsqueeze(0)])
+        # else:
+        #     target_state = query_state
 
         return {
             "query_state": query_state.float(),
