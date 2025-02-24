@@ -19,9 +19,3 @@ problem_list:
     kwargs: {}
   - problem: MaxClique
     kwargs: {}
-
-solver: 
-  name: RandomSearch
-  budget: 1000
-  n_runs: 3
-  full_info: False

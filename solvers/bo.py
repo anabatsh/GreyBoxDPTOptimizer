@@ -6,28 +6,28 @@ import matplotlib.pyplot as plt
 from .base import Solver
 
 
-# class BO(Solver):
-#     def __init__(self, problem, budget, k_init=10, k_samples=1):
-#         super().__init__(problem, budget, k_init=k_init, k_samples=k_samples)
+class BO(Solver):
+    def __init__(self, problem, budget, k_init=10, k_samples=1):
+        super().__init__(problem, budget, k_init=k_init, k_samples=k_samples)
 
-#     def init_settings(self, seed=0):
-#         np.random.seed(seed)
-#         self.optimizer = BayesianOptimization(
-#             f=lambda x: -1 * self.problem.target(x)[0],
-#             pbounds={'x': (0, self.problem.n)}, 
-#             random_state=1, 
-#             verbose=0,
-#         )
+    def init_settings(self, seed=0):
+        np.random.seed(seed)
+        self.optimizer = BayesianOptimization(
+            f=lambda x: -1 * self.problem.target(x)[0],
+            pbounds={'x': (0, self.problem.n)}, 
+            random_state=1, 
+            verbose=0,
+        )
 
-#     def init_points(self):
-#         self.optimizer.maximize(init_points=self.k_init, n_iter=0)
-#         points = self.optimizer._space.params
-#         return points
+    def init_points(self):
+        self.optimizer.maximize(init_points=self.k_init, n_iter=0)
+        points = self.optimizer._space.params
+        return points
 
-#     def sample_points(self):
-#         self.optimizer.maximize(init_points=0, n_iter=1)
-#         points = self.optimizer._space.params[-1:]
-#         return points
+    def sample_points(self):
+        self.optimizer.maximize(init_points=0, n_iter=1)
+        points = self.optimizer._space.params[-1:]
+        return points
     
 
 class BO(Solver):

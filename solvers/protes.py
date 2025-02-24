@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import optax
+import torch
 import numpy as np
 from .base import Solver
 
@@ -78,7 +79,7 @@ class PROTES(Solver):
     """
     Solver proposed in "PROTES: Probabilistic Optimization with Tensor Sampling".
     """
-    def __init__(self, problem, budget, k_init=0, k_samples=100, k_top=10, seed=0):
+    def __init__(self, problem, budget, k_samples=100, k_top=10, seed=0):
         """
         Additional Input:
             k_top - number of points subselected from sampled points in every optimization step
@@ -123,15 +124,14 @@ class PROTES(Solver):
         Zm = self.jx_interface_matrices(Pm, Pr)
         self.rng, key = jax.random.split(self.rng)
         I = self.jx_sample(Pl, Pm, Pr, Zm, jax.random.split(key, self.k_samples))
-        return I
+        points = torch.tensor(I.__array__()).long()
+        return points
 
     def update(self, points, targets, constraints):
-        # targets = jnp.array(targets)
-        targets = jnp.array(self.problem.target(points))
+        points = jnp.array(points)
+        targets = jnp.array(targets)
         ind = jnp.argsort(targets)[:self.k_top]
         points = points[ind]
         targets = targets[ind]
         # for _ in range(self.k_gd):
-        self.state, self.P = self.jx_optimize(self.state, self.P, points)        
-        points, targets = np.array(points), np.array(targets)
-        return points, targets
+        self.state, self.P = self.jx_optimize(self.state, self.P, points)

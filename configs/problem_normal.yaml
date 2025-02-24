@@ -19,9 +19,3 @@ problem_list:
     kwargs: {"mode": "normal", "loc": 20, "scale": 1}
   - problem: QUBO 
     kwargs: {"mode": "normal", "loc": 25, "scale": 1}
-
-solver: 
-  name: RandomSearch
-  budget: 1000
-  n_runs: 3
-  full_info: False

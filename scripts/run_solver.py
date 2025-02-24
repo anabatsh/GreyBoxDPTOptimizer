@@ -43,14 +43,14 @@ def main(problem, read_dir, save_dir, suffix, solver, budget, n_runs, full_info)
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--n_runs', type=int, default=1)
-    parser.add_argument('--read_dir', type=str, default="../data")
-    parser.add_argument('--save_dir', type=str, default="../results")
+    parser.add_argument('--problem', type=str, default="QUBO__mode_normal__loc_-5__scale_1")
+    parser.add_argument('--read_dir', type=str, default="../data/normal")
+    parser.add_argument('--save_dir', type=str, default="../results/normal")
     parser.add_argument('--suffix', type=str, default="test")
+    parser.add_argument('--solver', type=str, default="PROTES")
+    parser.add_argument('--n_runs', type=int, default=1)
     parser.add_argument('--budget', type=int, default=10)
-    parser.add_argument('--problem', type=str, default="QUBO")
-    parser.add_argument('--solver', type=str, default="RandomSearch")
-    parser.add_argument('--full_info', action="store_true", default=False, help="Save full information")
+    parser.add_argument('--full_info', action="store_true", default=True, help="Save full information")
 
     # Parse arguments
     args = parser.parse_args()

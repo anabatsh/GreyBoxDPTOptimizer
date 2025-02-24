@@ -50,11 +50,7 @@ class QUBOBase(Problem):
         pass
 
     def target(self, x):
-        if isinstance(x, np.ndarray):
-            x = torch.tensor(x).float()
-            Q = self.Q
-            return ((x @ Q) * x).sum(dim=-1).numpy()
-        
+        x = x.float()
         Q = self.Q.to(x.device)
         return ((x @ Q) * x).sum(dim=-1)
 
@@ -69,27 +65,6 @@ class QUBO(QUBOBase):
         Q = self.distribution.sample((self.d, self.d)).float()
         Q = torch.triu(Q)
         return Q
-
-# class QUBO(QUBOBase):
-#     def __init__(self, distr="randn", distr_kwargs={}, **kwargs):
-#         self.distr = distr
-#         self.distr_kwargs = distr_kwargs
-#         super().__init__(**kwargs)
-
-#     def generate_Q(self):
-#         rand = np.random.default_rng(self.seed)
-#         distr = getattr(rand, self.distr)
-#         Q = distr(size=(self.d, self.d), **self.distr_kwargs)
-
-#         # d_flatten = self.d * (self.d + 1) // 2
-#         # q = torch.randn(d_flatten, generator=generator).float()
-#         # inds = torch.triu_indices(self.d, self.d)
-#         # Q = torch.zeros(self.d, self.d)
-#         # Q[inds[0], inds[1]] = q
-#         # Q = self.distribution.sample((self.d, self.d)).float()
-#         Q = torch.tensor(Q).float()
-#         Q = torch.triu(Q)
-#         return Q
 
 class Knapsack(QUBOBase):
     def generate_Q(self):

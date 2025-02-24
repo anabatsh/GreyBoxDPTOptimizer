@@ -23,9 +23,3 @@ problem_list:
     kwargs: {"mode": "poisson", "rate": 4}
   - problem: QUBO
     kwargs: {"mode": "von_mises", "loc": 1, "concentration": 1}
-
-solver: 
-  name: RandomSearch
-  budget: 1000
-  n_runs: 3
-  full_info: False

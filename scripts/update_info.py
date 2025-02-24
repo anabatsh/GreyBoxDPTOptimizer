@@ -18,11 +18,13 @@ def set_info(problems, results, solver):
     for problem in problems:
         logs = results[problem.name]
         seed_best = np.argmin(logs["y_best"])
-        problem.info = {
+        suggested_info = {
             "solver": solver, 
             "x_best": logs['x_best'][seed_best], 
             "y_best": logs['y_best'][seed_best]
         }
+        if problem.info is None or suggested_info["y_best"] < problem.info["y_best"]:
+            problem.info = suggested_info
 
 def main(problem, read_dir, save_dir, suffix, solver):
     read_data_path = os.path.join(read_dir, problem, suffix)
