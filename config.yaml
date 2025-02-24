@@ -29,7 +29,8 @@ scheduler_params:
     warmup_epochs: 5
 
 parallel: true
-ad_eps: 0 # [0.7, 0.9]
+ad_eps_train: 0 # [0.7, 0.9]
+ad_eps_val: 0 #[0.5, 0.5]
 data_path: "data/normal"
 
 label_smoothing: 0.05
