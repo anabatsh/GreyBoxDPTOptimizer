@@ -51,9 +51,8 @@ class DPTSolver(L.LightningModule):
         """
         offline training step
         """
-        # batch["rewards"] = self.reward_model()
         outputs = self._offline_step(batch)
-        results = self.get_loss(**outputs) | self.get_metrics(**outputs)
+        results = self.get_loss(**outputs) #| self.get_metrics(**outputs)
         for key, val in results.items():
             self.log(f"train_{key}", val, on_step=True, on_epoch=False)
         return results
@@ -63,7 +62,7 @@ class DPTSolver(L.LightningModule):
         offline validation step
         """
         outputs = self._offline_step(batch)
-        results = self.get_loss(**outputs) | self.get_metrics(**outputs)
+        results = self.get_loss(**outputs) #| self.get_metrics(**outputs)
         for key, val in results.items():
             self.log(f"val_{key}", val, on_step=False, on_epoch=True, sync_dist=True)
         return results

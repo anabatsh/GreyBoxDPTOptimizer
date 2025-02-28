@@ -36,14 +36,14 @@ class QUBOBase(Problem):
     """
     Quadratic Binary Optimization Problem: x^TQx -> min_x
     """
-    def __init__(self, d=1, n=2, seed=0, **kwargs):
+    def __init__(self, d=10, n=2, seed=0, **kwargs):
         """
         Additional Input:
             seed - (int) random seed to determine Q
         """
         super().__init__(d, n)
         self.seed = seed
-        self.name += f"__seed_{seed}"
+        self.name += ''.join([f"__{k}_{v}" for k, v in kwargs.items()]) + f'__seed_{seed}'
         self.Q = self.generate_Q()
 
     def generate_Q(self):
@@ -54,16 +54,24 @@ class QUBOBase(Problem):
         Q = self.Q.to(x.device)
         return ((x @ Q) * x).sum(dim=-1)
 
-class QUBO(QUBOBase):
-    def __init__(self, d, n, seed=0, mode='normal', **kwargs):
+class Distribution(QUBOBase):
+    def __init__(self, d=10, n=2, seed=0, mode='normal', **kwargs):
         self.mode = mode
         self.distribution = DISTRIBUTIONS[mode](**kwargs)
-        super().__init__(d=d, n=n, seed=seed)
+        super().__init__(d=d, n=n, seed=seed, mode=mode, **kwargs)
 
     def generate_Q(self):
         torch.manual_seed(self.seed)
         Q = self.distribution.sample((self.d, self.d)).float()
-        Q = torch.triu(Q)
+        Q = 2 * Q - torch.diag(Q.sum(0)) - torch.diag(Q.sum(-1))
+        return Q
+
+class QUBO(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        Q = rand.normal(size=(self.d, self.d))
+        Q = np.triu(Q)
+        Q = torch.tensor(Q).float()
         return Q
 
 class Knapsack(QUBOBase):
@@ -75,7 +83,7 @@ class Knapsack(QUBOBase):
         Q = qubogen.qubo_qkp(value=values, a=weights, b=weight_limit)
         Q = torch.tensor(Q).float()
         return Q
-    
+
 class MaxCut(QUBOBase):
     def generate_Q(self):
         graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
@@ -124,7 +132,7 @@ class WMVC(QUBOBase):
 class NumberPartitioning(QUBOBase):
     def generate_Q(self):
         rand = np.random.default_rng(self.seed)
-        s = rand.random(self.d)
+        s = rand.integers(0, 10, self.d)
         Q = qubogen.qubo_number_partition(number_set=s)
         Q = torch.tensor(Q).float()
         return Q
@@ -156,13 +164,17 @@ class QAP(QUBOBase):
         d = int(np.sqrt(self.d))
         rand = np.random.default_rng(self.seed)
         flow = rand.random((d, d))
+        flow = (flow + flow.T) / 2
+        np.fill_diagonal(flow, 0)
         distance = rand.random((d, d))
+        distance = (distance + distance.T) / 2
+        np.fill_diagonal(distance, 0)
         Q = qubo_qap(flow=flow, distance=distance)
         pad = self.d - d ** 2
         Q = np.pad(Q, ((0, pad), (0, pad)))
         Q = torch.tensor(Q).float()
         return Q
-    
+
 def qubo_max_clique(g, penalty=10.):
     n_nodes = g.n_nodes
     q = np.zeros((n_nodes, n_nodes))
@@ -177,5 +189,64 @@ class MaxClique(QUBOBase):
         graph = nx.fast_gnp_random_graph(n=self.d, p=0.5, seed=self.seed)
         g = qubogen.Graph.from_networkx(graph)
         Q = qubo_max_clique(g=g)
+        Q = torch.tensor(Q).float()
+        return Q
+
+def qubo_set_pack(a, weight, penalty=8.):
+    assert len(a.shape) == 2
+    assert a.shape[-1] == len(weight)
+    q = -np.diagflat(weight)
+    c = np.einsum("ij,ik->ijk", a, a) / 2.  # constraint
+    c *= (1 - np.eye(a.shape[-1]))[None, ...]  # zeros diag
+    q += penalty * c.sum(0)
+    return q
+
+class SetPack(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        weights = rand.random(self.d) #rand.integers(1, 5, self.d).astype(np.float32)
+        k = rand.integers(1, self.d)
+        coefs = rand.integers(0, 2, (self.d, self.d))
+        Q = qubo_set_pack(a=coefs, weight=weights)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class SPP(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        costs = rand.random(self.d) #rand.integers(1, 5, self.d).astype(np.float32)
+        k = rand.integers(1, self.d)
+        coefs = rand.integers(0, 2, (self.d, self.d))
+        Q = qubogen.qubo_spp(cost=costs, set_flag=coefs)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+def qubo_max2sat(n, literals, signs):
+    q = np.zeros((n, n))
+    i, j = literals.T
+    si, sj = signs.T
+    np.add.at(q, (i[sj], i[sj]), ((-1) ** si)[sj])
+    np.add.at(q, (j[si], j[si]), ((-1) ** sj)[si])
+
+    offdiag = np.zeros_like(q)
+    np.add.at(offdiag, (i, j), (-1) ** (si ^ sj) / 2.)
+    return offdiag + offdiag.T + q
+
+class Max2Sat(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        k = self.d #rand.integers(1, self.d)
+        literals = rand.integers(0, self.d, (k, 2))
+        signs = rand.choice([True, False], (k, 2))
+        Q = qubo_max2sat(n=self.d, literals=literals, signs=signs)
+        Q = torch.tensor(Q).float()
+        return Q
+    
+class Ising(QUBOBase):
+    def generate_Q(self):
+        rand = np.random.default_rng(self.seed)
+        J = np.triu(rand.normal(size=(self.d, self.d)), 1)
+        h = rand.normal(size=self.d)
+        Q = 2 * J - np.diag(J.sum(0)) - np.diag(J.sum(-1)) - np.diag(h)
         Q = torch.tensor(Q).float()
         return Q

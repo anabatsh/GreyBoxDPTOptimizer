@@ -1,21 +1,23 @@
 problem_list:
-  - problem: QUBO
-    kwargs: {"mode": "normal", "loc": -20, "scale": 1}
-  - problem: QUBO
-    kwargs: {"mode": "normal", "loc": -15, "scale": 1}
-  - problem: QUBO
-    kwargs: {"mode": "normal", "loc": -10, "scale": 1}
-  - problem: QUBO 
-    kwargs: {"mode": "normal", "loc": -5, "scale": 1}
-  - problem: QUBO 
+  - problem: Distribution 
     kwargs: {"mode": "normal", "loc": 0, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 5, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 10, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 15, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 20, "scale": 1}
-  - problem: QUBO 
+  - problem: Distribution 
     kwargs: {"mode": "normal", "loc": 25, "scale": 1}
+  - problem: Distribution
+    kwargs: {"mode": "normal", "loc": 30, "scale": 1}
+  - problem: Distribution
+    kwargs: {"mode": "normal", "loc": 35, "scale": 1}
+  - problem: Distribution
+    kwargs: {"mode": "normal", "loc": 40, "scale": 1}
+  - problem: Distribution 
+    kwargs: {"mode": "normal", "loc": 45, "scale": 1}
+  - problem: Distribution 
+    kwargs: {"mode": "normal", "loc": 50, "scale": 1}

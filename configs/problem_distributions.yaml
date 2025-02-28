@@ -1,25 +1,25 @@
 problem_list:
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 0, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "log_normal", "loc": 0, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "half_normal", "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "uniform", "low": 0, "high": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "beta", "concentration1": 0.5, "concentration0": 0.5}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "cauchy", "loc": 0, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "gamma", "concentration": 1, "rate": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "gumbel", "loc": 1, "scale": 2}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "laplace", "loc": 0, "scale": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "pareto", "scale": 1, "alpha": 1}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "poisson", "rate": 4}
-  - problem: QUBO
+  - problem: Distribution
     kwargs: {"mode": "von_mises", "loc": 1, "concentration": 1}

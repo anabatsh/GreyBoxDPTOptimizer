@@ -55,30 +55,11 @@ class ProblemDataModule(LightningDataModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        # self.train_problems = None
-        # self.test_problems = None
-        # self.val_problems = None
-        # self.test_size = 1000
 
     def prepare_data(self):
         data_path = self.config['data_path']
         if not os.path.exists(data_path) or len(os.listdir(data_path)) == 0:
             raise ValueError(f'No data found in {data_path}. Run generate_data.py to create data.')
-        
-        # This method is called only once, regardless of the number of GPUs
-        # problem_class = getattr(pbs, self.config['problem_params']["problem"])
-        # params = "__".join(f"{k}_{v}" for k, v in self.config["problem_params"].items() if k != "use_problems")
-        # data_path = os.path.join(self.config["data_path"], params + ".dill")
-        # if not os.path.exists(data_path):
-        #     os.makedirs(data_path, exist_ok=True)
-        #     print("Generating dataset...")
-        #     problem_set = pbs.ProblemSet([problem_class(**self.config["problem_params"], seed=i) for i in tqdm(range(self.config["problem_params"]["n_problems"]))])
-        #     pbs.serialize_problem_set(problem_set, data_path)
-        #     print(f"Saved problem set to {data_path}")
-        #     test_problem_set = copy.copy(problem_set)
-        #     test_problem_set.problems = test_problem_set.problems[-self.test_size:]
-        #     pbs.serialize_problem_set(test_problem_set, data_path.split(".dill")[0] + "__test.dill")
-        #     print(f"Saved test set to {data_path}")
 
     def setup(self, stage=None):
         data_path = self.config['data_path']
@@ -93,28 +74,15 @@ class ProblemDataModule(LightningDataModule):
                 self.data[suffix].extend(problems)
             print(f'Train set: {len(self.data[suffix])} problems')
 
-        # data_path = "__".join(f"{k}_{v}" for k, v in sorted(self.config["problem_params"].items()) if k != "use_problems") + ".dill"
-        # data_path = os.path.join("data", data_path)
-        # self.problems = pbs.deserialize_problem_set(data_path).problems[-self.config["problem_params"]["use_problems"]:]
-        # problem_class = getattr(pbs, self.config["problem_params"]["problem"])
-        # # for i in range(len(self.problems)):
-        # #     new_problem = problem_class.__new__(problem_class)
-        # #     new_problem.__dict__ =self.problems[i].__dict__
-        # #     self.problems[i] = new_problem
-        # self.collate_fn = partial(custom_collate_fn, problem_class=problem_class)
-        # # This method is called on every GPU, but the data is already prepared
-        # val_size = 5000
-        # test_size = 1000
-        # # random.shuffle(self.problems)
-        # self.train_problems = self.problems[:-val_size-test_size]
-        # self.val_problems = self.problems[-val_size-test_size:-test_size]
-        # self.test_problems = self.problems[-test_size:]
-
     def train_dataloader(self):
         train_offline_dataset = OfflineDataset(
             problems=self.data['train'],
             seq_len=self.config["model_params"]["seq_len"],
-            ad_eps=self.config["ad_eps_train"],
+            action=self.config['action'],
+            target_action=self.config['target_action'],
+            ad_ratio=self.config['ad_ratio'],
+            results_dir=self.config['results_path'],
+            suffix='train'
         )
         return DataLoader(
             dataset=train_offline_dataset,
@@ -131,7 +99,11 @@ class ProblemDataModule(LightningDataModule):
         val_offline_dataset = OfflineDataset(
             problems=self.data['val'],
             seq_len=self.config["model_params"]["seq_len"],
-            ad_eps=self.config["ad_eps_val"],
+            action=self.config['action'],
+            target_action=self.config['target_action'],
+            ad_ratio=self.config['ad_ratio'],
+            results_dir=self.config['results_path'],
+            suffix='val'
         )
         return DataLoader(
                 dataset=val_offline_dataset,
@@ -193,7 +165,7 @@ def train(config):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('config', type=str, nargs='?', default='config.yaml', 
+    parser.add_argument('config', type=str, nargs='?', default='configs/config.yaml', 
                         help='Path to the configuration file (default: config.yaml)')
 
     # Parse arguments
