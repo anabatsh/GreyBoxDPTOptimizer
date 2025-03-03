@@ -68,7 +68,7 @@ class DPT(nn.Module):
             self,
             query_state: torch.Tensor,  # [batch_size, state_dim]
             states: torch.Tensor,       # [batch_size, seq_len, state_dim]
-            actions: torch.Tensor,      # [batch_size, seq_len] or [batch_size, seq_len, action_dim]
+            actions: torch.Tensor,      # [batch_size, seq_len, action_dim]
             next_states: torch.Tensor,  # [batch_size, seq_len, state_dim]
             rewards: torch.Tensor,      # [batch_size, seq_len]
         ) -> torch.Tensor:
@@ -76,8 +76,6 @@ class DPT(nn.Module):
                 query_state = query_state.unsqueeze(1)
             if rewards.ndim < 3:
                 rewards = rewards.unsqueeze(-1)
-            if actions.ndim == 2:
-                actions = F.one_hot(actions, num_classes=self.action_dim)
 
             B, _, D = query_state.size()
             D = max(D, actions.size(-1))

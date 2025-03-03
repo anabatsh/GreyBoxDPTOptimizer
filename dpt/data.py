@@ -135,6 +135,9 @@ class OfflineDataset(OnlineDataset):
                 target_action = possible_target_y.argmin()
             else:
                 raise ValueError(f"Invalid target action: {self.target_action}")
+            
+            # one-hot encoding
+            target_action = torch.eye(problem.d + 1, problem.d, dtype=torch.int)[target_action]
         else:
             raise ValueError(f"Invalid action: {self.action}")
         

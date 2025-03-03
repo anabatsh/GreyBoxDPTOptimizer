@@ -42,11 +42,16 @@ max_epochs: 500
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
+warmup: 50
 do_sample: false
 temperature: 1
 
 batch_size: 512
-num_workers: 12
+num_workers: 24
 
 online_steps: 50
 strategy: ddp
+
+problem_params:
+    d: 50
+    n: 2

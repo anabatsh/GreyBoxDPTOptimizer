@@ -2,35 +2,38 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import lightning as L
-from collections import defaultdict
-try:
-    from model import DPT
-    from schedule import cosine_annealing_with_warmup
-    from reward import Reward
-except ImportError:
-    from .model import DPT
-    from .schedule import cosine_annealing_with_warmup
-    from .reward import Reward
+
 try:
     from heavyball import PaLMForeachSFAdamW
 except ImportError:
     PaLMForeachSFAdamW = None
 
-from tqdm.auto import tqdm
 import gc
+from tqdm.auto import tqdm
+
+try:
+    from model import DPT
+    from loss import BCELoss
+    from schedule import cosine_annealing_with_warmup
+    from reward import Reward
+    from metrics import Metrics
+except ImportError:
+    from .model import DPT
+    from .loss import BCELoss
+    from .schedule import cosine_annealing_with_warmup
+    from .reward import Reward
+    from .metrics import Metrics
+
 
 class DPTSolver(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.loss = BCELoss(config['label_smoothing'])
+        self.metrics = Metrics()
         self.reward_model = Reward()
-        self.save_hyperparameters()
-        self.model = None
-
-    def configure_model(self):
-        if self.model is not None:
-            return
         self.model = DPT(**self.config["model_params"])
+        self.save_hyperparameters(ignore=["model, reward_model"])
 
     def configure_optimizers(self):
         opt_cls = PaLMForeachSFAdamW if PaLMForeachSFAdamW is not None else torch.optim.AdamW
@@ -51,20 +54,22 @@ class DPTSolver(L.LightningModule):
         """
         offline training step
         """
+        batch_size = len(batch['states'])
         outputs = self._offline_step(batch)
-        results = self.get_loss(**outputs) #| self.get_metrics(**outputs)
+        results = self.loss(**outputs) | self.metrics(**outputs)
         for key, val in results.items():
-            self.log(f"train_{key}", val, on_step=True, on_epoch=False)
+            self.log(f"train_{key}", val, on_step=True, on_epoch=False, batch_size=batch_size)
         return results
 
     def validation_step(self, batch, batch_idx):
         """
         offline validation step
         """
+        batch_size = len(batch['states'])
         outputs = self._offline_step(batch)
-        results = self.get_loss(**outputs) #| self.get_metrics(**outputs)
+        results = self.loss(**outputs) | self.metrics(**outputs)
         for key, val in results.items():
-            self.log(f"val_{key}", val, on_step=False, on_epoch=True, sync_dist=True)
+            self.log(f"val_{key}", val, on_step=False, on_epoch=True, sync_dist=True, batch_size=batch_size)
         return results
 
     def on_test_epoch_start(self):
@@ -80,76 +85,6 @@ class DPTSolver(L.LightningModule):
         self.trajectory = torch.cat(self.trajectories).mean(0)
         # self.trajectories.clear()
         return {"y": self.trajectory[-1]}
-
-    def get_loss(self, outputs, targets, predictions):
-        """
-        outputs - [batch_size, seq_len + 1, action_dim]
-        targets - [batch_size] or [batch_size, action_dim]
-        """
-        if targets.dim() == 2 and targets.size(1) == outputs.size(-1):
-            # Binary Cross-Entropy for parallel tasks
-            loss_fct = nn.BCEWithLogitsLoss()
-
-            # Reshape outputs to [batch_size * (seq_len + 1), action_dim]
-            logits = outputs.view(-1, outputs.size(-1)).contiguous()
-
-            # Repeat targets to match the sequence length dimension
-            # targets will be [batch_size, seq_len + 1, action_dim] after repeat
-            targets = targets.float().unsqueeze(1).repeat(1, outputs.size(1), 1)
-
-            # Reshape targets to [batch_size * (seq_len + 1), action_dim]
-            labels = targets.view(-1, targets.size(-1)).contiguous()
-
-            # Apply label smoothing
-            if self.config["label_smoothing"] > 0:
-                smoothing = self.config["label_smoothing"]
-                labels = labels * (1 - smoothing) + 0.5 * smoothing  # Smooth labels towards 0.5
-        else:
-            loss_fct = nn.CrossEntropyLoss(label_smoothing=self.config["label_smoothing"])
-
-            # Reshape outputs to [batch_size * (seq_len + 1), action_dim]
-            logits = outputs.view(-1, outputs.size(-1)).contiguous()
-
-            # Repeat targets to match the sequence length dimension
-            # targets will be [batch_size, seq_len + 1] after repeat
-            labels = targets.unsqueeze(1).repeat(1, outputs.size(1)).view(-1).long().contiguous()
-
-        loss = loss_fct(logits, labels)
-        return {"loss": loss}
-
-    def get_metrics(self, outputs, targets, predictions, problem=None):
-        """
-        offline mode:
-            predictions - [batch_size, seq_len + 1]
-            targets     - [batch_size]
-        online mode:
-            predictions - [batch_size, state_dim] or [batch_size, seq_len + 1, state_dim]
-            targets     - [batch_size, state_dim]
-        """
-        if targets.ndim == 2 and targets.size(1) == self.config["model_params"]["state_dim"]:
-            targets = targets.float()
-            if predictions.ndim == 2:
-                x_mae = torch.abs(predictions[:, :-1] - targets[:, :-1]).sum(-1).mean()
-                y_mae = torch.abs(predictions[:, -1] - targets[:, -1]).mean()
-                return {"x_mae": x_mae, "y_mae": y_mae}
-            else:
-                x_mae = torch.abs(predictions[:, :, :-1] - targets[:, None, :-1]).sum(-1).mean(0)
-                y_mae = torch.abs(predictions[:, :, -1] - targets[:, None, -1]).mean(0)
-                return {"x_mae": x_mae, "y_mae": y_mae}
-
-        targets = targets.long()
-        if targets.ndim == 1:
-            accuracy = (predictions == targets[:, None, None]).float()
-            mae = torch.abs(predictions - targets[:, None, None]).float()
-        else:
-            accuracy = (predictions == targets[:, None]).float()
-            mae = torch.abs(predictions - targets[:, None]).float()
-        return {
-            "accuracy": accuracy.mean(), 
-            "accuracy_last": accuracy[:, -1].mean(),
-            "x_mae": mae.mean(),
-            "x_mae_last": mae[:, -1].mean(),
-        }
 
     def get_predictions(self, outputs, do_sample=False, temperature=1.0, parallel=False):
         """
@@ -190,127 +125,204 @@ class DPTSolver(L.LightningModule):
             "predictions": self.get_predictions(outputs, parallel=self.config["parallel"]),
         }
 
-    def _online_step(self, batch):
+    def _online_step(self, batch): # to fix
         results = self.run(
             query_state=batch["query_state"],
             problems=batch["problem"],
+            warmup_steps=self.config["warmup"],
             n_steps=self.config["online_steps"],
             do_sample=self.config["do_sample"],
-            temperature_function=lambda x: self.config["temperature"]
+            temperature_function=lambda x: self.config["temperature"] if self.config["temperature"] is float else self.config["temperature"]  # add support in load_config()
         )
         return {
             "outputs": results["outputs"],
-            "all_predictions": results["next_states"],
-            "best_predictions": results["best_states"],
+            "targets": batch["target_state"],
+            "predictions": results["predictions"],
         }
 
-    def run(self, query_state, problems, warmup=50, n_steps=10, do_sample=False, temperature_function=lambda x: 1.0):
+    def run(self, query_state, problems, warmup_steps=0, n_steps=10, do_sample=False, temperature_function=lambda x: 1.0):
         """
         run an online inference
-        """
-        device = query_state.device
-        if self.config["model_params"]["warmup"] is not None:
-            warmup = self.config["model_params"]["warmup"]
-        if self.config["temperature"] is not None:
-            if callable(self.config["temperature"]) and self.config["temperature"].__name__ == "<lambda>":
-                temperature_function = self.config["temperature"]
-            else:
-                temperature_function = lambda x: self.config["temperature"]
+        """        
         seq_len = self.config["model_params"]["seq_len"]
         state_dim = self.config["model_params"]["state_dim"]
         action_dim = self.config["model_params"]["action_dim"]
-        if query_state.ndim == 1:
-            # [1, state_dim]
-            query_state = query_state.unsqueeze(0)
-            problems = [problems]
-        batch_size = query_state.size(0)
-        # [batch_size, 0, state_dim]
-        states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)
-        # [batch_size, 0]
-        if self.config["parallel"]:
-            actions = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.long, device=device)
-        else:
-            actions = torch.Tensor(batch_size, 0).to(dtype=torch.long, device=device)
-        # [batch_size, 0, state_dim]
-        next_states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)
-        # [batch_size, 0, 1]
-        rewards = torch.Tensor(batch_size, 0).to(dtype=torch.float, device=device)
-        # [batch_size, 0, action_dim]
-        outputs = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.float, device=device)
-        if warmup:
-            # print(f"preparing warmup context of {warmup} states")
-            warmup_x, warmup_y = [], []
+        batch_size = len(query_state)
+
+        device = self.device
+        total_steps = warmup_steps + n_steps
+        states = torch.Tensor(batch_size, total_steps, state_dim).to(dtype=torch.float, device=device)        
+        actions = torch.Tensor(batch_size, total_steps, action_dim).to(dtype=torch.long, device=device)
+        next_states = torch.Tensor(batch_size, total_steps, state_dim).to(dtype=torch.float, device=device)
+        rewards = torch.Tensor(batch_size, total_steps).to(dtype=torch.float, device=device)
+
+        def transition(state, action, problems=problems):
+            next_state = state.clone()
             for i in range(batch_size):
-                x = torch.randint(0, problems[i].n, dtype=torch.float, device=states.device, size=(warmup, problems[i].d))
-                y = problems[i].target(x)
-                warmup_x.append(x)
-                warmup_y.append(y)
-            warmup_states = torch.cat([torch.stack(warmup_x), torch.stack(warmup_y)[:, :, None]], dim=-1)
-        for n_step in tqdm(range(n_steps + warmup), position=0):
-            # [batch_size, state_dim]
-            if n_step < warmup:
-                query_state = warmup_states[:, n_step]
                 if self.config["parallel"]:
-                    output = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]))
+                    next_state[i][:-1] = action[i]
+                    next_state[i][-1] = problems[i].target(action[i].float().squeeze().detach())
                 else:
-                    output = torch.randint(0, self.config["problem_params"]["d"] + 1, (batch_size,))
-                output = output.to(device)
-                predicted_action = output.clone()
-                if not self.config["parallel"]:
-                    output = F.one_hot(output, num_classes=action_dim)
+                    if action[i] < problems[i].d:
+                        next_state[i][action[i]] = torch.abs(1 - next_state[i][action[i]])
+                        next_state[i][-1] = problems[i].target(next_state[i][:-1].float().squeeze().detach())
+            return next_state
+
+        # preparing warmup context
+        for idx in tqdm(range(warmup_steps), total=warmup_steps):
+            random_query_state = torch.randint(0, self.config["problem_params"]["n"], query_state.shape, device=device)
+            if self.config["parallel"]:
+                action = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]), device=device)
             else:
-                output = self.model(
-                    query_state=query_state,
-                    states=states[:, -seq_len:],
-                    actions=actions[:, -seq_len:],
-                    next_states=next_states[:, -seq_len:],
-                    rewards=rewards[:, -seq_len:]
-                )[:, -1, :] # type: ignore
+                action = torch.randint(0, self.config["problem_params"]["n"] + 1, (batch_size, 1), device=device)
+                action = torch.eye(self.config["problem_params"]["d"] + 1, self.config["problem_params"]["d"], dtype=torch.int)[actions] 
 
-                predicted_action = self.get_predictions(output, parallel=self.config["parallel"], do_sample=do_sample, 
-                                                        temperature=temperature_function(n_step / (n_steps + warmup)))
+            next_state = transition(random_query_state, action)
 
-            # [batch_size, state_dim]
-            predicted_state = query_state.clone()
-            for i in range(batch_size):
-                if self.config["parallel"]:
-                    predicted_state[i][:-1] = predicted_action[i]
-                    predicted_state[i][-1] = problems[i].target(predicted_action[i].float().squeeze().detach())
-                else:
-                    if predicted_action[i] < problems[i].d:
-                        predicted_state[i][predicted_action[i]] = torch.abs(1 - predicted_state[i][predicted_action[i]])
-                        predicted_state[i][-1] = problems[i].target(predicted_state[i][:-1].float().squeeze().detach())
-            # [batch_size, n_step, state_dim]
-            states = torch.cat([states, query_state.unsqueeze(1)], dim=1)
-            # [batch_size, n_step]
-            actions = torch.cat([actions, predicted_action.unsqueeze(1)], dim=1)
-            # [batch_size, n_step, state_dim]
-            next_states = torch.cat([next_states, predicted_state.unsqueeze(1)], dim=1)
-            # [batch_size, n_step, state_dim]
-            outputs = torch.cat([outputs, output.unsqueeze(1)], dim=1)  if outputs.size(1) else output.unsqueeze(1)
-            reward = self.reward_model.online(
-                states=states,
-                actions=actions,
-                next_states=next_states
+            states[:, idx] = random_query_state
+            actions[:, idx] = action
+            next_states[:, idx] = next_state
+            rewards[:, idx] = self.reward_model.online(
+                states=states[:, :idx+1],
+                actions=actions[:, :idx+1],
+                next_states=next_states[:, :idx+1]
             )
-            if rewards.size(1):
-                reward += rewards[:, -1] # Reward-To-Go
-            # [batch_size, n_step]
-            rewards = torch.cat([rewards, reward.unsqueeze(1)], dim=1)
-            query_state = predicted_state
 
-        # [batch_size, n_step, state_dim]
-        y = next_states[..., -1].squeeze(-1)
-        best_ys = y.cummin(1)[1]
-        best_states = torch.gather(next_states, dim=1, index=best_ys.unsqueeze(-1).expand(-1, -1, next_states.size(-1)))
+        # optimization loop
+        for idx in tqdm(range(n_steps), total=n_steps):
+            idx += warmup_steps
+            probs = self.model(
+                query_state=query_state,
+                states=states[:, :idx][:, -seq_len:],
+                actions=actions[:, :idx][:, -seq_len:],
+                next_states=next_states[:, :idx][:, -seq_len:],
+                rewards=rewards[:, :idx][:, -seq_len:]
+            )[:, -1, :] 
+
+            prediction = self.get_predictions(
+                probs, parallel=self.config["parallel"], 
+                do_sample=do_sample, temperature=temperature_function(idx / n_steps)
+            )
+
+            # transition
+            next_state = transition(query_state, prediction)
+
+            states[:, idx] = query_state
+            actions[:, idx] = prediction
+            next_states[:, idx] = next_state
+            rewards[:, idx] = self.reward_model.online(
+                states=states[:, :idx+1],
+                actions=actions[:, :idx+1],
+                next_states=next_states[:, :idx+1]
+            )
+            query_state = next_state
+
+        # cleanup
         gc.collect()
         torch.cuda.empty_cache()
         return {
-            "query_state": query_state,
-            "states": states,
-            "actions": actions,
-            "next_states": next_states,
-            "rewards": rewards,
-            "outputs": outputs,
-            "best_states": best_states,
+            "outputs": None,
+            "predictions": next_states
         }
+    
+    # def run(self, query_state, problems, warmup_steps=50, n_steps=10, do_sample=False, temperature_function=lambda x: 1.0):
+    #     """
+    #     run an online inference
+    #     """
+    #     # device = self.device
+        
+    #     seq_len = self.config["model_params"]["seq_len"]
+    #     state_dim = self.config["model_params"]["state_dim"]
+    #     action_dim = self.config["model_params"]["action_dim"]
+    #     batch_size = len(query_state)
+
+    #     device = query_state.device
+    #     states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)        
+    #     actions = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.long, device=device)
+    #     next_states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)
+    #     rewards = torch.Tensor(batch_size, 0).to(dtype=torch.float, device=device)
+        
+    #     # # [batch_size, 0, action_dim]
+    #     # outputs = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.float, device=device)
+
+    #     # preparing warmup context
+    #     if warmup_steps > 0:
+    #         warmup_x, warmup_y = [], []
+    #         for i in range(batch_size):
+    #             x = torch.randint(0, problems[i].n, size=(warmup_steps, problems[i].d), dtype=torch.float, device=device)
+    #             y = problems[i].target(x)
+    #             warmup_x.append(x)
+    #             warmup_y.append(y)
+
+    #         warmup_states = torch.cat([torch.stack(warmup_x), torch.stack(warmup_y)[:, :, None]], dim=-1)
+
+    #     # optimization loop
+    #     for idx in tqdm(range(n_steps + warmup_steps), total=n_steps+warmup_steps):
+    #         # [batch_size, state_dim]
+    #         if idx < warmup_steps:
+    #             query_state = warmup_states[:, idx]
+    #             output = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]), device=device)
+    #             predicted_action = output.clone()
+    #         else:
+    #             output = self.model(
+    #                 query_state=query_state,
+    #                 states=states[:, -seq_len:],
+    #                 actions=actions[:, -seq_len:],
+    #                 next_states=next_states[:, -seq_len:],
+    #                 rewards=rewards[:, -seq_len:]
+    #             )[:, -1, :] 
+
+    #             predicted_action = self.get_predictions(
+    #                 output, parallel=self.config["parallel"], 
+    #                 do_sample=do_sample, temperature=temperature_function(idx / (n_steps + warmup_steps))
+    #             )
+
+    #         # [batch_size, state_dim]
+    #         predicted_state = query_state.clone()
+    #         for i in range(batch_size):
+    #             if self.config["parallel"]:
+    #                 predicted_state[i][:-1] = predicted_action[i]
+    #                 predicted_state[i][-1] = problems[i].target(predicted_action[i].float().squeeze().detach())
+    #             else:
+    #                 if predicted_action[i] < problems[i].d:
+    #                     predicted_state[i][predicted_action[i]] = torch.abs(1 - predicted_state[i][predicted_action[i]])
+    #                     predicted_state[i][-1] = problems[i].target(predicted_state[i][:-1].float().squeeze().detach())
+
+            
+    #         # [batch_size, n_step, state_dim]
+    #         states = torch.cat([states, query_state.unsqueeze(1)], dim=1)
+    #         # [batch_size, n_step]
+    #         actions = torch.cat([actions, predicted_action.unsqueeze(1)], dim=1)
+    #         # [batch_size, n_step, state_dim]
+    #         next_states = torch.cat([next_states, predicted_state.unsqueeze(1)], dim=1)
+    #         # [batch_size, n_step, state_dim]
+    #         outputs = torch.cat([outputs, output.unsqueeze(1)], dim=1)  if outputs.size(1) else output.unsqueeze(1)
+    #         reward = self.reward_model.online(
+    #             states=states,
+    #             actions=actions,
+    #             next_states=next_states
+    #         )
+    #         if rewards.size(1):
+    #             reward += rewards[:, -1] # Reward-To-Go
+    #         # [batch_size, n_step]
+    #         rewards = torch.cat([rewards, reward.unsqueeze(1)], dim=1)
+    #         query_state = predicted_state
+
+    #     # [batch_size, n_step, state_dim]
+    #     y = next_states[..., -1].squeeze(-1)
+    #     best_ys = y.cummin(1)[1]
+    #     best_states = torch.gather(next_states, dim=1, index=best_ys.unsqueeze(-1).expand(-1, -1, next_states.size(-1)))
+
+    #     # cleanup
+    #     gc.collect()
+    #     torch.cuda.empty_cache()
+        
+    #     return {
+    #         "query_state": query_state,
+    #         "states": states,
+    #         "actions": actions,
+    #         "next_states": next_states,
+    #         "rewards": rewards,
+    #         "outputs": outputs,
+    #         "best_states": best_states,
+    #     }
