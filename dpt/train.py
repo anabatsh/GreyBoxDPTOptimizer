@@ -33,7 +33,7 @@ class DPTSolver(L.LightningModule):
         self.metrics = Metrics()
         self.reward_model = Reward()
         self.model = DPT(**self.config["model_params"])
-        self.save_hyperparameters(ignore=["model, reward_model"])
+        self.save_hyperparameters(ignore=["model, reward_model, loss, metrics"])
 
     def configure_optimizers(self):
         opt_cls = PaLMForeachSFAdamW if PaLMForeachSFAdamW is not None else torch.optim.AdamW
@@ -84,7 +84,7 @@ class DPTSolver(L.LightningModule):
         return {"y": trajectory[-1]}
 
     def on_test_epoch_end(self):
-        self.trajectory = torch.cat(self.trajectories).mean(0)
+        self.trajectory = torch.stack(self.trajectories, dim=0).mean(0)
         return {"y": self.trajectory[-1]}
 
     def get_predictions(self, outputs, do_sample=False, temperature=1.0, parallel=False):

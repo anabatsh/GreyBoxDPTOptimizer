@@ -90,7 +90,7 @@ class ProblemDataModule(LightningDataModule):
             dataset=train_offline_dataset,
             batch_size=self.config["batch_size"],
             num_workers=self.config["num_workers"],
-            # pin_memory=True,
+            pin_memory=True,
             shuffle=True,
             collate_fn=self.collate_fn,
             # prefetch_factor=8,
@@ -111,7 +111,7 @@ class ProblemDataModule(LightningDataModule):
                 dataset=val_offline_dataset,
                 batch_size=self.config["batch_size"],
                 num_workers=self.config["num_workers"],
-                # pin_memory=True,
+                pin_memory=True,
                 shuffle=False,
                 collate_fn=self.collate_fn,
             )
@@ -124,7 +124,7 @@ class ProblemDataModule(LightningDataModule):
             dataset=val_online_dataset,
             batch_size=self.config["batch_size"],
             num_workers=self.config["num_workers"],
-            # pin_memory=True,
+            pin_memory=True,
             shuffle=False,
             collate_fn=self.collate_fn,
         )
@@ -134,7 +134,7 @@ def train(config):
     model = DPTSolver(config)
     datamodule = ProblemDataModule(config)
     auto_wrap_policy = {TransformerBlock}
-    checkpoint_callback = ModelCheckpoint(every_n_epochs=25, save_last=10, save_top_k=-1, filename='{epoch}')
+    checkpoint_callback = ModelCheckpoint(every_n_epochs=25, save_last=True, filename='{epoch}')
     if config["strategy"] == "fsdp":
         strategy = FSDPStrategy(
             cpu_offload=False,

@@ -35,9 +35,9 @@ scheduler_params:
 parallel: true
 data_path: "data/normal"
 
-action: "bitflip"
+action: "point"
 target_action: "gt"
-ad_ratio: 0.0
+ad_ratio: 0.8
 trajectories_path: "results/normal"
 
 label_smoothing: 0.05
@@ -51,7 +51,7 @@ do_sample: false
 temperature: 1
 
 batch_size: 512
-num_workers: 8
+num_workers: 0
 
 online_steps: 50
 strategy: ddp
