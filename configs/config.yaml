@@ -24,6 +24,10 @@ optimizer_params:
     # warmup_steps: 250
     betas: [0.9, 0.99]
 
+problem_params:
+    d: 50
+    n: 2
+
 with_scheduler: false
 scheduler_params:
     warmup_epochs: 5
@@ -51,7 +55,3 @@ num_workers: 24
 
 online_steps: 50
 strategy: ddp
-
-problem_params:
-    d: 50
-    n: 2
