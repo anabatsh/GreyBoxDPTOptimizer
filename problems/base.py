@@ -5,7 +5,7 @@ class Problem():
     """
     Base class for an optimization problem. 
     """
-    def __init__(self, d=10, n=2):
+    def __init__(self, d=10, n=2, name=None):
         """
         Input:
             d - dimensionality of the problem (int)
@@ -13,8 +13,12 @@ class Problem():
         """
         self.d = d
         self.n = n
-        self.name = f'{self.__class__.__name__}'#__n_{self.n}__d_{self.d}'
         self.info = None
+
+        if name is None:
+            self.name = f'{self.__class__.__name__}__n_{self.n}__d_{self.d}'
+        else:
+            self.name = name
 
     def target(self, x):
         """

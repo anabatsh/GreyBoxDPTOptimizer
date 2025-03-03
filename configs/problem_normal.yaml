@@ -1,23 +1,44 @@
 problem_list:
-  - problem: Distribution 
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 0, "scale": 1}
+    name: Normal(0, 1)
+    
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 5, "scale": 1}
+    name: Normal(5, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 10, "scale": 1}
+    name: Normal(10, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 15, "scale": 1}
+    name: Normal(15, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 20, "scale": 1}
-  - problem: Distribution 
+    name: Normal(20, 1)
+
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 25, "scale": 1}
+    name: Normal(25, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 30, "scale": 1}
+    name: Normal(30, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 35, "scale": 1}
+    name: Normal(35, 1)
+
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 40, "scale": 1}
-  - problem: Distribution 
+    name: Normal(40, 1)
+
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 45, "scale": 1}
-  - problem: Distribution 
+    name: Normal(45, 1)
+
+  - problem: Distribution
     kwargs: {"mode": "normal", "loc": 50, "scale": 1}
+    name: Normal(50, 1)

@@ -1,29 +1,56 @@
 problem_list:
   - problem: GraphColoring
     kwargs: {}
+    name: GraphColoring
+
   - problem: Ising
     kwargs: {}
+    name: Ising
+
   - problem: Knapsack
     kwargs: {}
+    name: Knapsack
+
   - problem: Max2Sat
     kwargs: {}
+    name: Max2Sat
+
   - problem: MaxClique
     kwargs: {}
+    name: MaxClique
+
   - problem: MaxCut
     kwargs: {}
+    name: MaxCut
+
   - problem: MVC
     kwargs: {}
+    name: MVC
+
   - problem: NumberPartitioning
     kwargs: {}
+    name: NumberPartitioning
+
   - problem: QAP
     kwargs: {}
+    name: QAP
+
   - problem: QUBO
     kwargs: {}
+    name: QUBO
+
   - problem: SetPack
     kwargs: {}
+    name: SetPack
+
   - problem: SPP
     kwargs: {}
+    name: SPP
+
   - problem: WMaxCut
     kwargs: {}
+    name: WMaxCut
+
   - problem: WMVC
     kwargs: {}
+    name: WMVC

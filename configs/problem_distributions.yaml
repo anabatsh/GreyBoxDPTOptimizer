@@ -1,25 +1,48 @@
 problem_list:
   - problem: Distribution
     kwargs: {"mode": "normal", "loc": 0, "scale": 1}
+    name: Normal(0, 1)
+
   - problem: Distribution
     kwargs: {"mode": "log_normal", "loc": 0, "scale": 1}
+    name: LogNormal(0, 1)
+
   - problem: Distribution
     kwargs: {"mode": "half_normal", "scale": 1}
+    name: HalfNormal(1)
+
   - problem: Distribution
     kwargs: {"mode": "uniform", "low": 0, "high": 1}
+    name: Uniform(0, 1)
+
   - problem: Distribution
     kwargs: {"mode": "beta", "concentration1": 0.5, "concentration0": 0.5}
+    name: Beta(0.5, 0.5)
+
   - problem: Distribution
     kwargs: {"mode": "cauchy", "loc": 0, "scale": 1}
+    name: Cauchy(0, 1)
+
   - problem: Distribution
     kwargs: {"mode": "gamma", "concentration": 1, "rate": 1}
+    name: Gamma(1, 1)
+
   - problem: Distribution
     kwargs: {"mode": "gumbel", "loc": 1, "scale": 2}
+    name: Gumbel(1, 2)
+
   - problem: Distribution
     kwargs: {"mode": "laplace", "loc": 0, "scale": 1}
+    name: Laplace(0, 1)
+
   - problem: Distribution
     kwargs: {"mode": "pareto", "scale": 1, "alpha": 1}
+    name: Pareto(1, 1)
+
   - problem: Distribution
     kwargs: {"mode": "poisson", "rate": 4}
+    name: Poisson(4)
+
   - problem: Distribution
     kwargs: {"mode": "von_mises", "loc": 1, "concentration": 1}
+    name: VonMises(1, 1)

@@ -64,7 +64,7 @@ class ProblemDataModule(LightningDataModule):
     def setup(self, stage=None):
         data_path = self.config['data_path']
         problem_names = os.listdir(data_path)
-        problem_classes = set([getattr(pbs, problem_name.split('__')[0]) for problem_name in problem_names])
+        problem_classes = [getattr(pbs, 'Distribution')] #set([getattr(pbs, problem_name.split('__')[0]) for problem_name in problem_names])
         self.collate_fn = partial(custom_collate_fn, problem_classes=problem_classes)
         self.data = defaultdict(list)
         for suffix in ('train', 'val', 'test'):
@@ -81,14 +81,14 @@ class ProblemDataModule(LightningDataModule):
             action=self.config['action'],
             target_action=self.config['target_action'],
             ad_ratio=self.config['ad_ratio'],
-            results_dir=self.config['results_path'],
+            results_dir=self.config['trajectories_path'],
             suffix='train'
         )
         return DataLoader(
             dataset=train_offline_dataset,
             batch_size=self.config["batch_size"],
             num_workers=self.config["num_workers"],
-            pin_memory=True,
+            # pin_memory=True,
             shuffle=True,
             collate_fn=self.collate_fn,
             prefetch_factor=8,
@@ -102,14 +102,14 @@ class ProblemDataModule(LightningDataModule):
             action=self.config['action'],
             target_action=self.config['target_action'],
             ad_ratio=self.config['ad_ratio'],
-            results_dir=self.config['results_path'],
+            results_dir=self.config['trajectories_path'],
             suffix='val'
         )
         return DataLoader(
                 dataset=val_offline_dataset,
                 batch_size=self.config["batch_size"],
                 num_workers=self.config["num_workers"],
-                pin_memory=True,
+                # pin_memory=True,
                 shuffle=False,
                 collate_fn=self.collate_fn,
             )

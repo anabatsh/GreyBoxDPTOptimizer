@@ -16,7 +16,7 @@ from scripts.run_solver import load_results
 
 
 # ----------------------test_data.ipynb------------------------------
-def get_Xy(read_dir, problem_list, suffix='train'):
+def get_Xy(read_dir, problem_list, suffix='test'):
     X = []
     y = []
     for i, problem in enumerate(problem_list):
@@ -63,7 +63,7 @@ def show_tsne(problem_list, X, y, title=""):
     plt.title(title)
     plt.show()
 
-def print_unique(read_dir, problem_list, suffix='train'):
+def print_unique(read_dir, problem_list, suffix='test'):
     for problem_name in problem_list:
         d_x = []
         # d_solver = []
@@ -91,7 +91,7 @@ def get_seed_averaged_results(results):
     d['y (std)'] = np.mean(d['y (std)'], axis=0)
     return d
 
-def get_meta_results(read_dir, problem_list, suffix='train'):
+def get_meta_results(read_dir, problem_list, suffix='test'):
     meta_results = {}
     for problem in problem_list:
         meta_results[problem] = {}

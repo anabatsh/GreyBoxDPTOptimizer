@@ -11,22 +11,27 @@ from scripts.create_problem import load_problem_set
 import solvers as slv
 
 
-def run_solver(problems, solver_class, save_path, budget, n_runs=1, full_info=False):
-    results = {}
+def run_solver(problems, solver, save_dir, budget, n_runs=1, full_info=False):
+    # results = {}
+    solver_class = getattr(slv, solver)
     for problem in problems:
-        results[problem.name] = defaultdict(list)
+        # results[problem.name] = defaultdict(list)
 
         for seed in range(n_runs):
-            solver = solver_class(problem, budget=budget, seed=seed)
-            logs = solver.optimize()
-            for key in logs.keys() if full_info else ('x_best', 'y_best'):
-                results[problem.name][key].append(logs[key])
+            logs = solver_class(problem, budget=budget, seed=seed).optimize()
+            # for key in logs.keys() if full_info else ('x_best', 'y_best'):
+                # results[problem.name][key].append(logs[key])
 
-    with open(f"{save_path}.json", "w") as f:
-        json.dump(results, f, indent=4)
+            save_path = os.path.join(save_dir, problem.name, solver)
+            os.makedirs(save_path, exist_ok=True)
+            with open(f"{save_path}/{solver}__seed_{seed}.json", "w") as f:
+                json.dump(logs, f, indent=4)
+
+    # with open(f"{save_path}.json", "w") as f:
+    #     json.dump(results, f, indent=4)
 
 def load_results(read_path):
-    with open(f"{read_path}.json", "r") as f:
+    with open(read_path, "r") as f:
         results = json.load(f)
     return results
 
@@ -34,11 +39,10 @@ def main(problem, read_dir, save_dir, suffix, solver, budget, n_runs, full_info)
     read_path = os.path.join(read_dir, problem, suffix)
     save_dir = os.path.join(save_dir, problem, suffix)
     os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, solver)
+    save_path = save_dir #os.path.join(save_dir, solver)
 
     problems = load_problem_set(read_path)
-    solver_class = getattr(slv, solver)
-    run_solver(problems, solver_class, save_path, budget, n_runs, full_info)
+    run_solver(problems, solver, save_path, budget, n_runs, full_info)
 
 if __name__ == '__main__':
     # Set up argparse

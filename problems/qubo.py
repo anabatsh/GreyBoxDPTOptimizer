@@ -36,15 +36,20 @@ class QUBOBase(Problem):
     """
     Quadratic Binary Optimization Problem: x^TQx -> min_x
     """
-    def __init__(self, d=10, n=2, seed=0, **kwargs):
+    def __init__(self, d=10, n=2, name=None, seed=0, **kwargs):
         """
         Additional Input:
             seed - (int) random seed to determine Q
         """
         super().__init__(d, n)
         self.seed = seed
-        self.name += ''.join([f"__{k}_{v}" for k, v in kwargs.items()]) + f'__seed_{seed}'
         self.Q = self.generate_Q()
+
+        if name is None:
+            self.name += ''.join([f"__{k}_{v}" for k, v in kwargs.items()])
+        else:
+            self.name = name
+        self.name += f'__seed_{seed}'
 
     def generate_Q(self):
         pass
@@ -55,10 +60,10 @@ class QUBOBase(Problem):
         return ((x @ Q) * x).sum(dim=-1)
 
 class Distribution(QUBOBase):
-    def __init__(self, d=10, n=2, seed=0, mode='normal', **kwargs):
+    def __init__(self, d=10, n=2, name=None, seed=0, mode='normal', **kwargs):
         self.mode = mode
         self.distribution = DISTRIBUTIONS[mode](**kwargs)
-        super().__init__(d=d, n=n, seed=seed, mode=mode, **kwargs)
+        super().__init__(d=d, n=n, name=name, seed=seed, mode=mode, **kwargs)
 
     def generate_Q(self):
         torch.manual_seed(self.seed)

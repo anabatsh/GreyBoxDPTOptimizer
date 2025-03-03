@@ -41,32 +41,6 @@ class OnlineDataset(Dataset):
             "problem": problem,
         }
 
-def get_solver_probes(problem, seq_len=10, results_dir='', suffix='test'):
-    if seq_len == 0:
-        x = torch.tensor([])
-        y = torch.tensor([])
-    else:
-        problem_class = problem.name.split('__seed')[0]
-        problem_path = os.path.join(results_dir, problem_class, suffix)
-        solvers = [solver[:-5] for solver in os.listdir(problem_path)]
-        solver = np.random.choice(solvers)
-        solver_path = os.path.join(problem_path, solver)
-        results = load_results(solver_path)[problem.name]
-        seed = np.random.choice(len(results['y_best']))
-        indexes = np.random.choice(len(results['m_list'][seed]), seq_len, replace=False)
-        x = torch.tensor([results['x_list'][seed][i] for i in indexes]).float()
-        y = torch.tensor([results['y_list'][seed][i] for i in indexes]).float()
-    return x, y
-
-def get_random_probes(problem, seq_len=10):
-    if seq_len == 0:
-        x = torch.tensor([])
-        y = torch.tensor([])
-    else:
-        x = torch.randint(0, problem.n, (seq_len, problem.d))
-        y = problem.target(x)
-    return x, y
-
 class OfflineDataset(OnlineDataset):
     def __init__(self, problems, seq_len=50, results_dir='', suffix='', ad_ratio=0.0, action='point', target_action='gt', device='cpu'):
         super().__init__(problems, device)
@@ -83,6 +57,33 @@ class OfflineDataset(OnlineDataset):
         if action == 'point' and target_action == 'greedy':
             raise ValueError("Greed search is not supported with point action")
 
+    def get_solver_probes(self, problem, seq_len=10, results_dir='', suffix='test'):
+        if seq_len == 0:
+            states = torch.tensor([])
+        else:
+            problem_name = problem.name.split('__seed')[0]
+            problem_path = os.path.join(results_dir, problem_name, suffix, problem.name)
+            solver_name = np.random.choice(os.listdir(problem_path))
+            solver_path = os.path.join(problem_path, solver_name)
+            traj_name = np.random.choice(os.listdir(solver_path))
+            traj_path = os.path.join(solver_path, traj_name)
+            results = load_results(traj_path)
+            x = torch.tensor(results['x_list'])
+            y = torch.tensor(results['y_list'])
+            traj = torch.cat([x, y.unsqueeze(1)], dim=1)
+            indexes = np.random.choice(len(traj), seq_len)#, replace=False)
+            states = traj[indexes]
+        return states
+
+    def get_random_probes(self, problem, seq_len=10):
+        if seq_len == 0:
+            states = torch.tensor([])
+        else:
+            x = torch.randint(0, problem.n, (seq_len, problem.d))
+            y = problem.target(x)
+            states = torch.cat([x, y.unsqueeze(1)], dim=1)
+        return states
+
     def __getitem__(self, index: int):
         # problem = self.problems[index]
         sample = super().__getitem__(index)
@@ -92,12 +93,9 @@ class OfflineDataset(OnlineDataset):
             seq_len = self.seq_len + 1
             n_solver = int(self.ad_ratio * seq_len)
             n_random = seq_len - n_solver
-            x_solver, y_solver = get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
-            x_random, y_random = get_random_probes(problem, n_random)
-            x = torch.cat([x_solver, x_random])
-            y = torch.cat([y_solver, y_random])
-            context = torch.cat([x, y.unsqueeze(1)], dim=1)
-            context = context[torch.randperm(context.size(0))]
+            states_solver = self.get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
+            states_random = self.get_random_probes(problem, n_random)
+            context = torch.cat([states_solver, states_random])
 
             states = context[:-1]
             actions = context[1:, :-1]
@@ -105,12 +103,11 @@ class OfflineDataset(OnlineDataset):
             target_action = sample["target_state"][:-1]
 
         elif self.action == 'bitflip':
-            x, y = get_random_probes(problem, self.seq_len)
-            states = torch.cat([x, y.unsqueeze(1)], dim=1)
+            states = self.get_random_probes(problem, self.seq_len)
 
             actions = torch.randint(0, problem.d + 1, (self.seq_len,), dtype=torch.int, device=self.device)
             
-            x_next = x.clone()
+            x_next = states[:, :-1].long()
             mask = actions < problem.d
             indices = torch.arange(self.seq_len, device=self.device)[mask]
             x_next[indices, actions[mask]] ^= 1
