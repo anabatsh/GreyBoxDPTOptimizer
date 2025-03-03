@@ -11,10 +11,9 @@ from scripts.run_solver import load_results
 
 
 class OnlineDataset(Dataset):
-    def __init__(self, problems, device='cpu'):
+    def __init__(self, problems):
         super().__init__()
         self.problems = problems
-        self.device = device
 
     def __len__(self):
         return len(self.problems)
@@ -23,7 +22,7 @@ class OnlineDataset(Dataset):
         problem = self.problems[index]
 
         # query state
-        query_x = torch.randint(0, problem.n, (problem.d,), dtype=torch.float, device=self.device)
+        query_x = torch.randint(0, problem.n, (problem.d,), dtype=torch.float)
         query_y = problem.target(query_x)
         query_state = torch.cat([query_x, query_y.unsqueeze(0)])
 
@@ -42,8 +41,8 @@ class OnlineDataset(Dataset):
         }
 
 class OfflineDataset(OnlineDataset):
-    def __init__(self, problems, seq_len=50, results_dir='', suffix='', ad_ratio=0.0, action='point', target_action='gt', device='cpu'):
-        super().__init__(problems, device)
+    def __init__(self, problems, seq_len=50, results_dir='', suffix='', ad_ratio=0.0, action='point', target_action='gt'):
+        super().__init__(problems)
         self.seq_len = seq_len
         self.results_dir = results_dir
         self.suffix = suffix
@@ -71,7 +70,7 @@ class OfflineDataset(OnlineDataset):
             x = torch.tensor(results['x_list'])
             y = torch.tensor(results['y_list'])
             traj = torch.cat([x, y.unsqueeze(1)], dim=1)
-            indexes = np.random.choice(len(traj), seq_len)#, replace=False)
+            indexes = np.random.choice(len(traj), seq_len)
             states = traj[indexes]
         return states
 
@@ -96,6 +95,7 @@ class OfflineDataset(OnlineDataset):
             states_solver = self.get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
             states_random = self.get_random_probes(problem, n_random)
             context = torch.cat([states_solver, states_random])
+            context = context[torch.randperm(len(context))]
 
             states = context[:-1]
             actions = context[1:, :-1]
@@ -104,18 +104,17 @@ class OfflineDataset(OnlineDataset):
 
         elif self.action == 'bitflip':
             states = self.get_random_probes(problem, self.seq_len)
-
-            actions = torch.randint(0, problem.d + 1, (self.seq_len,), dtype=torch.int, device=self.device)
+            actions = torch.randint(0, problem.d + 1, (self.seq_len,), dtype=torch.int)
             
             x_next = states[:, :-1].long()
             mask = actions < problem.d
-            indices = torch.arange(self.seq_len, device=self.device)[mask]
+            indices = torch.arange(self.seq_len)[mask]
             x_next[indices, actions[mask]] ^= 1
             y_next = problem.target(x_next)
             next_states = torch.cat([x_next, y_next.unsqueeze(1)], dim=1)
 
             if self.target_action == 'gt':
-                target_action = torch.randint(0, problem.d + 1, (1,), dtype=torch.int, device=self.device)[0]
+                target_action = torch.randint(0, problem.d + 1, (1,), dtype=torch.int)[0]
 
                 target_x = sample["target_state"][:-1].long()
                 query_x = sample["query_state"][:-1].long()
@@ -130,7 +129,7 @@ class OfflineDataset(OnlineDataset):
 
             elif self.target_action == 'greedy':
                 query_x = sample["query_state"][:-1].long()                
-                possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int, device=self.device)
+                possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)
                 possible_target_x = possible_actions ^ query_x
                 possible_target_y = problem.target(possible_target_x)
                 target_action = possible_target_y.argmin()
@@ -146,11 +145,3 @@ class OfflineDataset(OnlineDataset):
             "target_action": target_action.long()
         }
         return sample
-
-        #     # TODO: refine AD+eps logic
-        #     # probes_ratio = 1 - self.ad_max_eps * index / len(self.problems)
-        #     # prob = torch.linspace(0, probes_ratio, self.seq_len)
-        #     # max_probes = torch.multinomial(prob / prob.sum(), num_samples=1).item()
-        #     random_ratio = np.random.uniform(low=self.ad_eps[0], high=self.ad_eps[1], size=(1,))
-        #     num_probes = min(len(problem.x_probes), int(self.seq_len * (1 - random_ratio)))
-        #     probes_idx = torch.randperm(len(problem.x_probes))[:num_probes].tolist()
