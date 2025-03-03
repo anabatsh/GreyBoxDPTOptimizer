@@ -14,6 +14,7 @@ import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import seed_everything, LightningDataModule
+from lightning.pytorch.profilers import PyTorchProfiler
 
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.distributed.fsdp import MixedPrecision
@@ -45,10 +46,9 @@ def load_config(config_path):
 def collate_problem_fn(batch, *, collate_fn_map):
     return batch
 
-def custom_collate_fn(batch, problem_classes):
+def custom_collate_fn(batch, problem_class):
     custom_collate_fn_map = default_collate_fn_map.copy()
-    for problem_class in problem_classes:
-        custom_collate_fn_map[problem_class] = collate_problem_fn
+    custom_collate_fn_map[problem_class] = collate_problem_fn
     return collate(batch, collate_fn_map=custom_collate_fn_map)
 
 class ProblemDataModule(LightningDataModule):
@@ -64,8 +64,10 @@ class ProblemDataModule(LightningDataModule):
     def setup(self, stage=None):
         data_path = self.config['data_path']
         problem_names = os.listdir(data_path)
-        problem_classes = [getattr(pbs, 'Distribution')] #set([getattr(pbs, problem_name.split('__')[0]) for problem_name in problem_names])
-        self.collate_fn = partial(custom_collate_fn, problem_classes=problem_classes)
+        for name in config['exclude_problems']:
+            problem_names.remove(name)
+
+        self.collate_fn = partial(custom_collate_fn, problem_class=getattr(pbs, 'Problem'))
         self.data = defaultdict(list)
         for suffix in ('train', 'val', 'test'):
             for problem in problem_names:
@@ -91,8 +93,8 @@ class ProblemDataModule(LightningDataModule):
             # pin_memory=True,
             shuffle=True,
             collate_fn=self.collate_fn,
-            prefetch_factor=8,
-            persistent_workers=True,
+            # prefetch_factor=8,
+            # persistent_workers=True,
         )
 
     def val_dataloader(self):
@@ -122,7 +124,7 @@ class ProblemDataModule(LightningDataModule):
             dataset=val_online_dataset,
             batch_size=self.config["batch_size"],
             num_workers=self.config["num_workers"],
-            pin_memory=True,
+            # pin_memory=True,
             shuffle=False,
             collate_fn=self.collate_fn,
         )
@@ -142,6 +144,7 @@ def train(config):
         )
     else:
         strategy = config["strategy"]
+
     trainer = L.Trainer(
         logger=logger,
         precision=config["precision"] if config["strategy"] != "fsdp" else None,
@@ -150,7 +153,7 @@ def train(config):
         default_root_dir=config["wandb_params"]["save_dir"],
         enable_model_summary=True,
         callbacks=[checkpoint_callback],
-        use_distributed_sampler=False,
+        # use_distributed_sampler=False,
         strategy=strategy,
         # profiler=PyTorchProfiler(filename="profiler_output.txt"),
         # deterministic=True
@@ -160,7 +163,7 @@ def train(config):
         datamodule=datamodule,
         # ckpt_path="results/DPT_3/0ogshb6h/checkpoints/epoch=49.ckpt",
     )
-    # trainer.test(model, datamodule=datamodule)
+    trainer.test(model, datamodule=datamodule)
 
 if __name__ == '__main__':
     # Set up argparse
