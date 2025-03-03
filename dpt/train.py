@@ -77,13 +77,14 @@ class DPTSolver(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         outputs = self._online_step(batch)
+        y = outputs["predictions"][..., -1]
+        trajectory = torch.cummin(y, -1).values.mean(0)
         if hasattr(self, "trajectories"):
-            self.trajectories.append(outputs["best_predictions"][..., -1])
-        return {"problems": batch["problem"], "y": outputs["best_predictions"][:, -1, -1]}
+            self.trajectories.append(trajectory)
+        return {"y": trajectory[-1]}
 
     def on_test_epoch_end(self):
         self.trajectory = torch.cat(self.trajectories).mean(0)
-        # self.trajectories.clear()
         return {"y": self.trajectory[-1]}
 
     def get_predictions(self, outputs, do_sample=False, temperature=1.0, parallel=False):
@@ -220,109 +221,8 @@ class DPTSolver(L.LightningModule):
         # cleanup
         gc.collect()
         torch.cuda.empty_cache()
+
         return {
             "outputs": None,
             "predictions": next_states
         }
-    
-    # def run(self, query_state, problems, warmup_steps=50, n_steps=10, do_sample=False, temperature_function=lambda x: 1.0):
-    #     """
-    #     run an online inference
-    #     """
-    #     # device = self.device
-        
-    #     seq_len = self.config["model_params"]["seq_len"]
-    #     state_dim = self.config["model_params"]["state_dim"]
-    #     action_dim = self.config["model_params"]["action_dim"]
-    #     batch_size = len(query_state)
-
-    #     device = query_state.device
-    #     states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)        
-    #     actions = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.long, device=device)
-    #     next_states = torch.Tensor(batch_size, 0, state_dim).to(dtype=torch.float, device=device)
-    #     rewards = torch.Tensor(batch_size, 0).to(dtype=torch.float, device=device)
-        
-    #     # # [batch_size, 0, action_dim]
-    #     # outputs = torch.Tensor(batch_size, 0, action_dim).to(dtype=torch.float, device=device)
-
-    #     # preparing warmup context
-    #     if warmup_steps > 0:
-    #         warmup_x, warmup_y = [], []
-    #         for i in range(batch_size):
-    #             x = torch.randint(0, problems[i].n, size=(warmup_steps, problems[i].d), dtype=torch.float, device=device)
-    #             y = problems[i].target(x)
-    #             warmup_x.append(x)
-    #             warmup_y.append(y)
-
-    #         warmup_states = torch.cat([torch.stack(warmup_x), torch.stack(warmup_y)[:, :, None]], dim=-1)
-
-    #     # optimization loop
-    #     for idx in tqdm(range(n_steps + warmup_steps), total=n_steps+warmup_steps):
-    #         # [batch_size, state_dim]
-    #         if idx < warmup_steps:
-    #             query_state = warmup_states[:, idx]
-    #             output = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]), device=device)
-    #             predicted_action = output.clone()
-    #         else:
-    #             output = self.model(
-    #                 query_state=query_state,
-    #                 states=states[:, -seq_len:],
-    #                 actions=actions[:, -seq_len:],
-    #                 next_states=next_states[:, -seq_len:],
-    #                 rewards=rewards[:, -seq_len:]
-    #             )[:, -1, :] 
-
-    #             predicted_action = self.get_predictions(
-    #                 output, parallel=self.config["parallel"], 
-    #                 do_sample=do_sample, temperature=temperature_function(idx / (n_steps + warmup_steps))
-    #             )
-
-    #         # [batch_size, state_dim]
-    #         predicted_state = query_state.clone()
-    #         for i in range(batch_size):
-    #             if self.config["parallel"]:
-    #                 predicted_state[i][:-1] = predicted_action[i]
-    #                 predicted_state[i][-1] = problems[i].target(predicted_action[i].float().squeeze().detach())
-    #             else:
-    #                 if predicted_action[i] < problems[i].d:
-    #                     predicted_state[i][predicted_action[i]] = torch.abs(1 - predicted_state[i][predicted_action[i]])
-    #                     predicted_state[i][-1] = problems[i].target(predicted_state[i][:-1].float().squeeze().detach())
-
-            
-    #         # [batch_size, n_step, state_dim]
-    #         states = torch.cat([states, query_state.unsqueeze(1)], dim=1)
-    #         # [batch_size, n_step]
-    #         actions = torch.cat([actions, predicted_action.unsqueeze(1)], dim=1)
-    #         # [batch_size, n_step, state_dim]
-    #         next_states = torch.cat([next_states, predicted_state.unsqueeze(1)], dim=1)
-    #         # [batch_size, n_step, state_dim]
-    #         outputs = torch.cat([outputs, output.unsqueeze(1)], dim=1)  if outputs.size(1) else output.unsqueeze(1)
-    #         reward = self.reward_model.online(
-    #             states=states,
-    #             actions=actions,
-    #             next_states=next_states
-    #         )
-    #         if rewards.size(1):
-    #             reward += rewards[:, -1] # Reward-To-Go
-    #         # [batch_size, n_step]
-    #         rewards = torch.cat([rewards, reward.unsqueeze(1)], dim=1)
-    #         query_state = predicted_state
-
-    #     # [batch_size, n_step, state_dim]
-    #     y = next_states[..., -1].squeeze(-1)
-    #     best_ys = y.cummin(1)[1]
-    #     best_states = torch.gather(next_states, dim=1, index=best_ys.unsqueeze(-1).expand(-1, -1, next_states.size(-1)))
-
-    #     # cleanup
-    #     gc.collect()
-    #     torch.cuda.empty_cache()
-        
-    #     return {
-    #         "query_state": query_state,
-    #         "states": states,
-    #         "actions": actions,
-    #         "next_states": next_states,
-    #         "rewards": rewards,
-    #         "outputs": outputs,
-    #         "best_states": best_states,
-    #     }
