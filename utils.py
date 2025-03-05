@@ -34,7 +34,7 @@ def get_Xy(read_dir, problem_list, suffix='test'):
 def get_tsne(X):
     tsne = TSNE(
         n_components=2,      # we want a 2D embedding
-        perplexity=30,       # typical perplexity value; can tune
+        perplexity=min(len(X)-1, 30),       # typical perplexity value; can tune
         learning_rate='auto',# can also specify a numeric value like 200
         init='pca',          # good default initialization
         random_state=42      # for reproducibility
@@ -75,35 +75,30 @@ def print_unique(read_dir, problem_list, suffix='test'):
         # solvers, stats = np.unique(d_solver, return_counts=True)
         print(f'{problem_name}: {len(x_unique)}')# {solvers} {stats}')
 
-def get_seed_averaged_results(results):
-    d = {'m': [], 'y (mean)': [], 'y (std)': []}
-    for problem, logs in results.items():
-        m = logs['m_list'][0]
-        y = np.minimum.accumulate(logs['y_list'], axis=-1)
-        y_mean = np.mean(y, axis=0)
-        y_std = np.std(y, axis=0)
-        d['m'].append(m)
-        d['y (mean)'].append(y_mean)
-        d['y (std)'].append(y_std)
+def get_meta_results(problem, solver, read_dir, suffix='test', budget=100, n_steps=10):
+    problem_path = os.path.join(read_dir, problem, suffix)
+    problem_results = defaultdict(list)
 
-    d['m'] = d['m'][0]
-    d['y (mean)'] = np.mean(d['y (mean)'], axis=0)
-    d['y (std)'] = np.mean(d['y (std)'], axis=0)
-    return d
+    m_list = np.linspace(0, budget, n_steps, dtype=np.int32)
 
-def get_meta_results(read_dir, problem_list, suffix='test'):
-    meta_results = {}
-    for problem in problem_list:
-        meta_results[problem] = {}
-        problem_path = os.path.join(read_dir, problem, suffix)
-        solver_list = [solver.split('.')[0] for solver in os.listdir(problem_path)]
+    for problem in os.listdir(problem_path):
+        solver_path = os.path.join(problem_path, problem, solver)
+            
+        y_list = []
+        for seed in os.listdir(solver_path):
+            seed_path = os.path.join(solver_path, seed)
+            results = load_results(seed_path)
+            y_list.append(np.interp(m_list, results['m_list'], results['y_list']))
 
-        for solver in solver_list:
-            solver_path = os.path.join(problem_path, solver)
-            results = load_results(solver_path)
-            seed_averaged_results = get_seed_averaged_results(results)
-            meta_results[problem][solver] = seed_averaged_results
-    return meta_results
+        problem_results['y_list (mean)'].append(np.mean(y_list, axis=0))
+        problem_results['y_list (std)'].append(np.std(y_list, axis=0))
+
+    problem_results = {
+        'm_list': m_list,
+        'y_list (mean)': np.mean(problem_results['y_list (mean)'], axis=0),
+        'y_list (std)': np.mean(problem_results['y_list (std)'], axis=0)
+    }
+    return problem_results
 
 def get_problem_averaged_meta_results(meta_results):
     d = {}
@@ -116,9 +111,9 @@ def get_problem_averaged_meta_results(meta_results):
                     d[solver][key] = []
                 d[solver][key].append(meta_results[problem][solver][key])
     for solver in d.keys():
-        d[solver]['m'] = d[solver]['m'][0]
-        d[solver]['y (mean)'] = np.mean(d[solver]['y (mean)'], axis=0)
-        d[solver]['y (std)'] = np.mean(d[solver]['y (std)'], axis=0)
+        d[solver]['m_list'] = d[solver]['m_list'][0]
+        d[solver]['y_list (mean)'] = np.mean(d[solver]['y_list (mean)'], axis=0)
+        d[solver]['y_list (std)'] = np.mean(d[solver]['y_list (std)'], axis=0)
     return {'all': d}
 
 def show_meta_results(meta_results):
@@ -134,7 +129,7 @@ def show_meta_results(meta_results):
         i, j = p // m, p % m
 
         if 'PROTES' in meta_results[problem]:
-            clip_val = meta_results[problem]['PROTES']['y (mean)'][0]
+            clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
         else:
             clip_val = None
 
@@ -149,8 +144,8 @@ def show_meta_results(meta_results):
             else:
                 title = problem
             axes[i, j].set_title(title)
-            y = np.clip(results['y (mean)'], None, clip_val)
-            axes[i, j].plot(results['m'], y, label=solver)
+            y = np.clip(results['y_list (mean)'], None, clip_val)
+            axes[i, j].plot(results['m_list'], y, label=solver)
             # axes[i, j].fill_between(
             #     results['m'], 
             #     y - results['y (std)'], 

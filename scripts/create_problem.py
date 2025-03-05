@@ -44,20 +44,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Load configuration file.')
     parser.add_argument('--d', type=int, default=50, help='d')
     parser.add_argument('--n', type=int, default=2, help='n')
-    parser.add_argument('--n_test', type=int, default=10)
-    parser.add_argument('--n_val', type=int, default=10)
-    parser.add_argument('--n_train', type=int, default=100)
-    parser.add_argument('--save_dir', type=str, default="../data/test")
-    parser.add_argument('--name', type=str, default=None)
-    parser.add_argument('--problem', type=str, default="Distribution")
+    parser.add_argument('--n_test', type=int, default=2)
+    parser.add_argument('--n_val', type=int, default=2)
+    parser.add_argument('--n_train', type=int, default=10)
+    parser.add_argument('--problem', type=str, default="QUBO")
     parser.add_argument('--kwargs', type=json.loads, default={})
+    parser.add_argument('--save_dir', type=str, default="../data/test")
+    parser.add_argument('--name', type=str, default="QUBO")
 
     # Parse arguments
     args = parser.parse_args()
 
     main(
-        args.problem, args.kwargs, args.name,
+        args.problem, args.kwargs,
         args.d, args.n, 
         args.n_train, args.n_val, args.n_test, 
-        args.save_dir
+        args.save_dir, args.name
     )

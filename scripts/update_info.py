@@ -26,8 +26,8 @@ def main(problem, read_data_dir, read_res_dir, suffix):
                 results = load_results(seed_path)
                 suggested_info = {
                     "solver": solver,
-                    "x_best": torch.tensor(results['x_best']).int(),
-                    "y_best": torch.tensor(results['y_best']).float()
+                    "x_best": results['x_best'],
+                    "y_best": results['y_best']
                 }
                 if problem.info is None or suggested_info["y_best"] < problem.info["y_best"]:
                     problem.info = suggested_info
@@ -37,8 +37,8 @@ def main(problem, read_data_dir, read_res_dir, suffix):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--read_data_dir', type=str, default="../data")
-    parser.add_argument('--read_res_dir', type=str, default="../results")
+    parser.add_argument('--read_data_dir', type=str, default="../data/test")
+    parser.add_argument('--read_res_dir', type=str, default="../results/test")
     parser.add_argument('--suffix', type=str, default="test")
     parser.add_argument('--problem', type=str, default="QUBO")
 

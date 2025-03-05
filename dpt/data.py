@@ -67,8 +67,8 @@ class OfflineDataset(OnlineDataset):
             traj_name = np.random.choice(os.listdir(solver_path))
             traj_path = os.path.join(solver_path, traj_name)
             results = load_results(traj_path)
-            x = torch.tensor(results['x_list'])
-            y = torch.tensor(results['y_list'])
+            x = results['x_list']
+            y = results['y_list']
             traj = torch.cat([x, y.unsqueeze(1)], dim=1)
             indexes = np.random.choice(len(traj), seq_len)
             states = traj[indexes]

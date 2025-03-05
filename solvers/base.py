@@ -11,14 +11,14 @@ class Logger:
     def __init__(self):
         self.t_start = tpc()
         self.logs = {
-            'y_best': None, # the best-found target (float)
-            'x_best': None, # argument corresponding to y_best (integer vector of size [d])
-            't_best': None, # time to find the best solution (float)
-            'm_list': [],   # a list of iterations on which the previous values were updated
-            'x_list': [],   # a history of best-found arguments per iteration from m_list
-            'y_list': []    # a history of best-found targets per iteration from m_list
+            'x_best': None, # best-found argument
+            'y_best': None, # best-found target
+            't_best': None, # time to find the best solution
+            'm_list': [],   # a list of iterations
+            'x_list': [],   # a history of best-found arguments
+            'y_list': [],   # a history of best-found targets
         }
-    
+
     def update(self, m, points, targets, constraints):
         """
         Function to perform updating.
@@ -27,7 +27,6 @@ class Logger:
             points - points sampled in the step m (iterable of shape [batch_size, d])
             targets - target values corrresponding to the points (iterable of shape [batch_size, d])
             constraints -  constraint flags corrresponding to the points (iterable of shape [batch_size, d])
-            title - specific title to label the step (str)
         """
         # if batch_size > 0, get the best point in term of the minimal target value
         i_best = torch.argmin(targets)
@@ -36,13 +35,23 @@ class Logger:
 
         # if the new point is better than the known best point, update the knowledge
         if self.logs['y_best'] is None or (y_best < self.logs['y_best']):
-            self.logs['x_best'] = x_best.tolist()
-            self.logs['y_best'] = y_best.item()
-            self.logs['t_best'] = tpc() - self.t_start
+            self.logs['x_best'] = x_best
+            self.logs['y_best'] = y_best
+            self.logs['m_list'].append(m)
+            self.logs['x_list'].append(x_best)
+            self.logs['y_list'].append(y_best)
 
-        self.logs['m_list'].append(m)
-        self.logs['x_list'].append(x_best.tolist())
-        self.logs['y_list'].append(y_best.item()) #self.logs['y_best']) - cummulative min
+    def finish(self, save_path=None):
+        """
+        Function to finish the optimization process.
+        """
+        self.logs['time'] = tpc() - self.t_start
+        self.logs['m_list'] = torch.tensor(self.logs['m_list'])
+        self.logs['x_list'] = torch.stack(self.logs['x_list'])
+        self.logs['y_list'] = torch.stack(self.logs['y_list'])
+        if save_path:
+            torch.save(self.logs, f'{save_path}.pt')
+
 
 class Solver():
     """
@@ -96,7 +105,7 @@ class Solver():
         """
         pass        
 
-    def optimize(self):
+    def optimize(self, save_path=None):
         """
         Function to perform entire optimization.
         Input:
@@ -132,4 +141,5 @@ class Solver():
             else:
                 # if the algortithm hasn't managed to sample a single point, stop the process
                 break
+        self.logger.finish(save_path)
         return self.logger.logs

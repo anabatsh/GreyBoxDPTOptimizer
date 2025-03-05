@@ -1,0 +1,8 @@
+problem_list:
+  - problem: Distribution
+    kwargs: {"mode": "normal", "loc": 5, "scale": 1}
+    name: Normal(0, 1)
+
+  - problem: Distribution
+    kwargs: {"mode": "normal", "loc": 10, "scale": 1}
+    name: Normal(25, 1)

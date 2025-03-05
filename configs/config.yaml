@@ -33,12 +33,12 @@ scheduler_params:
     warmup_epochs: 5
 
 parallel: true
-data_path: "data/normal"
+data_path: "data/test"
 
 action: "point"
 target_action: "gt"
 ad_ratio: 0.8
-trajectories_path: "results/normal"
+trajectories_path: "results/test"
 
 label_smoothing: 0.05
 precision: bf16-mixed
@@ -51,7 +51,7 @@ do_sample: false
 temperature: 1
 
 batch_size: 512
-num_workers: 0
+num_workers: 16
 
 online_steps: 50
 strategy: ddp
