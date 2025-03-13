@@ -64,14 +64,15 @@ class OfflineDataset(OnlineDataset):
             problem_path = os.path.join(results_dir, problem_name, suffix, problem.name)
             solver_name = np.random.choice(os.listdir(problem_path))
             solver_path = os.path.join(problem_path, solver_name)
-            traj_name = np.random.choice(os.listdir(solver_path))
-            traj_path = os.path.join(solver_path, traj_name)
-            results = load_results(traj_path)
+            seed_name = np.random.choice(os.listdir(solver_path))
+            seed_path = os.path.join(solver_path, seed_name)
+            results = load_results(seed_path)
             x = results['x_list']
             y = results['y_list']
-            traj = torch.cat([x, y.unsqueeze(1)], dim=1)
-            indexes = np.random.choice(len(traj), seq_len)
-            states = traj[indexes]
+            trajectory = torch.cat([x, y.unsqueeze(1)], dim=1)
+            n = len(trajectory)
+            indexes = np.random.choice(n, min(n, seq_len), replace=False)
+            states = trajectory[indexes]
         return states
 
     def get_random_probes(self, problem, seq_len=10):
@@ -90,13 +91,19 @@ class OfflineDataset(OnlineDataset):
 
         if self.action == 'point':
             seq_len = self.seq_len + 1
-            n_solver = int(self.ad_ratio * seq_len)
-            n_random = seq_len - n_solver
-            states_solver = self.get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
-            states_random = self.get_random_probes(problem, n_random)
-            context = torch.cat([states_solver, states_random])
-            context = context[torch.randperm(len(context))]
 
+            n_solver = int(self.ad_ratio * seq_len)
+            states_solver = self.get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
+
+            n_random = seq_len - len(states_solver)
+            states_random = self.get_random_probes(problem, n_random)
+
+            # print(f'ratio = {self.ad_ratio} seq_len = {seq_len}')
+            # print(f'set:  solver = {n_solver} random = {seq_len - n_solver} ratio = {n_solver/seq_len}')
+            # print(f'real: solver = {len(states_solver)} random = {n_random} ratio = {1 - n_random/seq_len}')
+            # print()
+
+            context = torch.cat([states_solver, states_random])[torch.randperm(seq_len)]
             states = context[:-1]
             actions = context[1:, :-1]
             next_states = context[1:]
@@ -137,11 +144,24 @@ class OfflineDataset(OnlineDataset):
                 raise ValueError(f"Invalid target action: {self.target_action}")
             
             # one-hot encoding
-            actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)[actions]
-            target_action = torch.eye(problem.d + 1, problem.d, dtype=torch.int)[target_action]
+            actions = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[actions]
+            target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
         else:
             raise ValueError(f"Invalid action: {self.action}")
         
+        y = torch.cat([sample["query_state"][-1].unsqueeze(0), states[:, -1], next_states[:, -1]])
+        y_min, y_max = y.min(), y.max()
+        y_range = y_max - y_min
+
+        query_state[-1] -= y_min
+        query_state[-1] /= y_range
+
+        states[:, -1] -= y_min
+        states[:, -1] /= y_range
+        
+        next_states[:, -1] -= y_min
+        next_states[:, -1] /= y_range
+
         sample |= {
             "states": states.float(),
             "actions": actions.long(),

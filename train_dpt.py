@@ -163,17 +163,17 @@ def train(config):
         datamodule=datamodule,
         # ckpt_path="results/DPT_3/0ogshb6h/checkpoints/epoch=49.ckpt",
     )
-    trainer.test(model, datamodule=datamodule)
+    # trainer.test(model, datamodule=datamodule)
 
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('config', type=str, nargs='?', default='configs/config.yaml', 
+    parser.add_argument('config', type=str, nargs='?', default='configs/config_10.yaml', 
                         help='Path to the configuration file (default: config.yaml)')
 
     # Parse arguments
     args = parser.parse_args()
-    
+
     # Load configuration
     config = load_config(args.config)
     seed_everything(config["seed"], workers=True)

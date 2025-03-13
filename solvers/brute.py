@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from .base import Logger, Solver
+from .base import Solver
 
 
 def int2base(x, d, n):
@@ -11,42 +11,29 @@ def int2base(x, d, n):
     for _ in range(d):
         i.append(x % n)
         x //= n
-    return list(reversed(i))
-
-def get_grid(d, n, n_nodes=1024):
-    """
-    For given d and n list all the vectors [{1, n}]^d
-    *if there's too many, list only len_max of them with equal step
-    input: d, n - integer
-    input: i - either all or a part of the vectors [{1, n}]^d
-    """
-    d_new = min(d, int(np.emath.logn(n, n_nodes)))
-    x = np.arange(0, n ** d_new)
-    i = int2base(x, d_new, n)
-    if d_new < d:
-        i = np.pad(i, ((0, 0), (0, d - d_new)), constant_values=0)
-        i = np.pad(i, ((0, 1), (0, 0)), constant_values=n-1)
+    i = torch.stack(i).flip(0).T
     return i
 
+
+def get_grid(d, n):
+    """
+    For given d and n list all the vectors [{1, n}]^d
+    input: d, n - integer
+    input: i - vectors [{1, n}]^d
+    """
+    x = torch.arange(0, n ** d)
+    i = int2base(x, d, n)
+    return i
+
+
 class BRUTE(Solver):
-    def __init__(self, problem, budget, k_init=0, k_samples=0, seed=0):
-        super().__init__(problem, budget, k_init, k_samples, seed)
-
-    def optimize(self):
-        self.logger = Logger(self)
-
-        device = "cpu"
-        x = torch.tensor(
-            get_grid(self.problem.d, self.problem.n, self.budget), 
-            device=device
-        ).float()
-        y = self.problem.target(x)
-        i_best = torch.argmin(y).item()
-
-        x_min = x[i_best].numpy()
-        y_min = y[i_best].numpy()
-        self.logger.logs['x_best'] = x_min.tolist()
-        self.logger.logs['y_best'] = float(y_min)
-        self.logger.logs['y_list'] = y.tolist()
-        self.logger.logs['m_list'] = list(range(len(y)))
-        return self.logger.logs
+    def __init__(self, problem, budget, seed=0):
+        assert problem.d <= np.emath.logn(problem.n, 1024), "The dimension of the problem is too high for brute force"
+        super().__init__(problem, budget=problem.n**problem.d, k_init=0, k_samples=1, seed=seed)
+        self.points = get_grid(self.problem.d, self.problem.n)
+        self.i = 0
+    
+    def sample_points(self):
+        points = self.points[self.i].unsqueeze(0)
+        self.i += 1
+        return points

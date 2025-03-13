@@ -1,0 +1,3 @@
+solver_list:
+  - solver: BRUTE
+    kwargs: {}

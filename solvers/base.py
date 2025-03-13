@@ -11,9 +11,9 @@ class Logger:
     def __init__(self):
         self.t_start = tpc()
         self.logs = {
+            'time': None,   # time to find the best solution
             'x_best': None, # best-found argument
             'y_best': None, # best-found target
-            't_best': None, # time to find the best solution
             'm_list': [],   # a list of iterations
             'x_list': [],   # a history of best-found arguments
             'y_list': [],   # a history of best-found targets

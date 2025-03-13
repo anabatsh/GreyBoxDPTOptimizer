@@ -88,7 +88,8 @@ class DPT(nn.Module):
             # [batch_size, seq_len + 1, 2 * state_dim + action_dim + 1]
             sequence = torch.cat([state_seq, action_seq, next_state_seq, reward_seq], dim=-1)
 
-            sequence = self.seq_proj(self.seq_norm(sequence))
+            sequence = self.seq_norm(sequence)
+            sequence = self.seq_proj(sequence)
             out = self.emb_dropout(sequence)
 
             for block in self.transformer:

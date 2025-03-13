@@ -11,14 +11,14 @@ class Reward():
     def offline(self, states, actions, next_states):
         y = states[..., -1]
         y_next = next_states[..., -1]
-        cummin = y.cummin(1).values
-        cummax = y.cummax(1).values
+        cummin = y.cummin(-1).values
+        cummax = y.cummax(-1).values
         scale = torch.maximum(cummax - cummin, torch.tensor(1.))
         rewards = (cummin - y_next) / scale
         rewards = rewards.sign() * rewards.abs().log1p()
         # rewards = relative_improvement(torch.cummin(y, dim=1)[0], y_next).tanh()
         # Reward-To-Go
-        return rewards.cumsum(1)
+        return rewards.cumsum(-1)
 
     def online(self, states, actions, next_states):
         y = states[..., -1]
@@ -31,3 +31,14 @@ class Reward():
         rewards = rewards.sign() * rewards.abs().log1p()
         # rewards = relative_improvement(y.min(dim=1).values, y_next[:, -1]).tanh()
         return rewards
+
+
+class ZeroReward():
+    def __init__(self):
+        self.alpha = 0.5
+
+    def offline(self, states, actions, next_states):
+        return torch.zeros(actions.shape[:-1], device=actions.device)
+
+    def online(self, states, actions, next_states):
+        return torch.zeros(actions.shape[:-1], device=actions.device)

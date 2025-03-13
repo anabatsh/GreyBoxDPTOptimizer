@@ -13,24 +13,33 @@ from tqdm.auto import tqdm
 
 try:
     from model import DPT
-    from loss import BCELoss
+    from loss import BCELoss, CELoss
     from schedule import cosine_annealing_with_warmup
-    from reward import Reward
-    from metrics import Metrics
+    from reward import Reward, ZeroReward
+    from metrics import PointMetrics, BitflipMetrics
 except ImportError:
     from .model import DPT
-    from .loss import BCELoss
+    from .loss import BCELoss, CELoss
     from .schedule import cosine_annealing_with_warmup
-    from .reward import Reward
-    from .metrics import Metrics
+    from .reward import Reward, ZeroReward
+    from .metrics import PointMetrics, BitflipMetrics
 
 
 class DPTSolver(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.loss = BCELoss(config['label_smoothing'])
-        self.metrics = Metrics()
+
+        action = config['action']
+        if action == 'point':
+            self.loss = BCELoss(config['label_smoothing'])
+            self.metrics = PointMetrics()
+        elif action == 'bitflip':
+            self.loss = CELoss(config['label_smoothing'])
+            self.metrics = BitflipMetrics()
+        else:
+            raise ValueError(f"Unknown action type: {action}")
+        
         self.reward_model = Reward()
         self.model = DPT(**self.config["model_params"])
         self.save_hyperparameters(ignore=["model, reward_model, loss, metrics"])
@@ -87,24 +96,27 @@ class DPTSolver(L.LightningModule):
         self.trajectory = torch.stack(self.trajectories, dim=0).mean(0)
         return {"y": self.trajectory[-1]}
 
-    def get_predictions(self, outputs, do_sample=False, temperature=1.0, parallel=False):
+    def get_predictions(self, outputs, do_sample=False, temperature=1.0):
         """
         outputs - [batch_size, seq_len + 1, action_dim]
-        parallel: If True, treat as a parallel (multi-label) task.
         """
-        if parallel:
-            # Single-label binary task
+        action = self.config["action"]
+        if action == "point":
             if do_sample and temperature > 0:
                 probs = torch.sigmoid(outputs / temperature)
                 predictions = torch.bernoulli(probs)
             else:
                 predictions = (torch.sigmoid(outputs) > 0.5).long()
-        else:
+        elif action == "bitflip":
             if do_sample and temperature > 0:
                 probs = F.softmax(outputs / temperature, dim=-1)
                 predictions = torch.multinomial(probs, num_samples=1).squeeze(-1)
             else:
                 predictions = torch.argmax(outputs, dim=-1)
+            d = outputs.shape[-1]
+            predictions = torch.eye(d, d, dtype=torch.int, device=predictions.device)[predictions]
+        else:
+            raise ValueError(f"Unknown action type: {action}")
         return predictions
 
     def _offline_step(self, batch):
@@ -123,17 +135,13 @@ class DPTSolver(L.LightningModule):
         return {
             "outputs": outputs,
             "targets": batch["target_action"],
-            "predictions": self.get_predictions(outputs, parallel=self.config["parallel"]),
+            "predictions": self.get_predictions(outputs),
         }
 
-    def _online_step(self, batch): # to fix
+    def _online_step(self, batch):
         results = self.run(
             query_state=batch["query_state"],
-            problems=batch["problem"],
-            warmup_steps=self.config["warmup"],
-            n_steps=self.config["online_steps"],
-            do_sample=self.config["do_sample"],
-            temperature_function=lambda x: self.config["temperature"] if self.config["temperature"] is float else self.config["temperature"]  # add support in load_config()
+            problems=batch["problem"]
         )
         return {
             "outputs": results["outputs"],
@@ -141,17 +149,24 @@ class DPTSolver(L.LightningModule):
             "predictions": results["predictions"],
         }
 
-    def run(self, query_state, problems, warmup_steps=0, n_steps=10, do_sample=False, temperature_function=lambda x: 1.0):
+    def run(self, query_state, problems):
         """
         run an online inference
-        """        
+        """
         seq_len = self.config["model_params"]["seq_len"]
         state_dim = self.config["model_params"]["state_dim"]
         action_dim = self.config["model_params"]["action_dim"]
-        batch_size = len(query_state)
+        warmup_steps = self.config["warmup_steps"]
+        n_steps = self.config["online_steps"]
+        do_sample = self.config["do_sample"]
+        temperature_function = lambda x: self.config["temperature"] if self.config["temperature"] is float else self.config["temperature"]  # add support in load_config()
+        action_mode = self.config["action"]
+        # assert action_mode in ["point", "bitflip"], f"Unknown action mode: {action_mode}"
 
         device = self.device
+        batch_size = len(query_state)
         total_steps = warmup_steps + n_steps
+
         states = torch.Tensor(batch_size, total_steps, state_dim).to(dtype=torch.float, device=device)        
         actions = torch.Tensor(batch_size, total_steps, action_dim).to(dtype=torch.long, device=device)
         next_states = torch.Tensor(batch_size, total_steps, state_dim).to(dtype=torch.float, device=device)
@@ -160,23 +175,27 @@ class DPTSolver(L.LightningModule):
         def transition(state, action, problems=problems):
             next_state = state.clone()
             for i in range(batch_size):
-                if self.config["parallel"]:
+                if action_mode == "point":
                     next_state[i][:-1] = action[i]
                     next_state[i][-1] = problems[i].target(action[i].float().squeeze().detach())
-                else:
+                elif action_mode == "bitflip":
                     if action[i] < problems[i].d:
                         next_state[i][action[i]] = torch.abs(1 - next_state[i][action[i]])
                         next_state[i][-1] = problems[i].target(next_state[i][:-1].float().squeeze().detach())
+                else:
+                    raise ValueError(f"Unknown action mode: {action_mode}")
             return next_state
 
         # preparing warmup context
         for idx in tqdm(range(warmup_steps), total=warmup_steps):
             random_query_state = torch.randint(0, self.config["problem_params"]["n"], query_state.shape, device=device)
-            if self.config["parallel"]:
+            if action_mode == "point":
                 action = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]), device=device)
-            else:
+            elif action_mode == "bitflip":
                 action = torch.randint(0, self.config["problem_params"]["n"] + 1, (batch_size, 1), device=device)
-                action = torch.eye(self.config["problem_params"]["d"] + 1, self.config["problem_params"]["d"], dtype=torch.int)[actions] 
+                action = torch.eye(self.config["problem_params"]["d"] + 1, self.config["problem_params"]["d"], dtype=torch.int)[actions]
+            else:
+                raise ValueError(f"Unknown action mode: {action_mode}")
 
             next_state = transition(random_query_state, action)
 
@@ -200,10 +219,8 @@ class DPTSolver(L.LightningModule):
                 rewards=rewards[:, :idx][:, -seq_len:]
             )[:, -1, :] 
 
-            prediction = self.get_predictions(
-                probs, parallel=self.config["parallel"], 
-                do_sample=do_sample, temperature=temperature_function(idx / n_steps)
-            )
+            temperature = temperature_function(idx / n_steps)
+            prediction = self.get_predictions(probs, do_sample, temperature)
 
             # transition
             next_state = transition(query_state, prediction)
