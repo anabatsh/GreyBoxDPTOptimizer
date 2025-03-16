@@ -77,6 +77,26 @@ class DPT(nn.Module):
             if rewards.ndim < 3:
                 rewards = rewards.unsqueeze(-1)
 
+            y = torch.cat([query_state[..., -1], states[..., -1], next_states[..., -1]], dim=1)
+            y_min = y.min(dim=1).values.unsqueeze(1)
+            y_max = y.max(dim=1).values.unsqueeze(1)
+            y_range = y_max - y_min
+
+            y_min[y_range == 0] = 0
+            y_range[y_range == 0] = 1
+
+            query_state = query_state.clone()
+            query_state[..., -1] -= y_min
+            query_state[..., -1] /= y_range
+
+            states = states.clone()
+            states[..., -1] -= y_min
+            states[..., -1] /= y_range
+            
+            next_states = next_states.clone()
+            next_states[..., -1] -= y_min
+            next_states[..., -1] /= y_range
+    
             B, _, D = query_state.size()
             D = max(D, actions.size(-1))
             zeros = torch.zeros((B, 1, D), device=states.device, dtype=states.dtype)

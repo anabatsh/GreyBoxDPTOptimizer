@@ -1,18 +1,21 @@
 import os
+import sys
 import json
 import argparse
 
-import sys
 root_path = '../'
 sys.path.insert(0, root_path)
+
 import problems as pbm
 
 
 def save_problem_set(problems, save_path):
     pbm.serialize_problem_set(pbm.ProblemSet(problems), f"{save_path}.dill")
 
+
 def load_problem_set(read_path):
     return pbm.deserialize_problem_set(f"{read_path}.dill").problems
+
 
 def create_problem_sets(problem_class, d, n, name, kwargs, n_test, n_val, n_train, save_path):
     problems = [problem_class(d=d, n=n, name=name, seed=i, **kwargs) for i in range(n_test+n_val+n_train)]
@@ -24,6 +27,7 @@ def create_problem_sets(problem_class, d, n, name, kwargs, n_test, n_val, n_trai
     save_problem_set(problems_test, f"{save_path}/test")
     save_problem_set(problems_val, f"{save_path}/val")
     save_problem_set(problems_train, f"{save_path}/train")
+
 
 def main(problem, kwargs, d, n, n_train, n_val, n_test, save_dir, name=None):
     if name is None:
@@ -38,6 +42,7 @@ def main(problem, kwargs, d, n, n_train, n_val, n_test, save_dir, name=None):
         save_path
     )
     return name
+
 
 if __name__ == '__main__':
     # Set up argparse

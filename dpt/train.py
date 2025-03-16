@@ -176,40 +176,41 @@ class DPTSolver(L.LightningModule):
             next_state = state.clone()
             for i in range(batch_size):
                 if action_mode == "point":
-                    next_state[i][:-1] = action[i]
-                    next_state[i][-1] = problems[i].target(action[i].float().squeeze().detach())
+                    next_state[i][..., :-1] = action[i]
                 elif action_mode == "bitflip":
-                    if action[i] < problems[i].d:
-                        next_state[i][action[i]] = torch.abs(1 - next_state[i][action[i]])
-                        next_state[i][-1] = problems[i].target(next_state[i][:-1].float().squeeze().detach())
+                    next_state[i][..., :-1] = state[i][..., :-1].long() ^ action[i][..., :-1]
                 else:
                     raise ValueError(f"Unknown action mode: {action_mode}")
+                next_state[i][..., -1] = problems[i].target(next_state[i][..., :-1].float().squeeze().detach())
             return next_state
 
-        # preparing warmup context
-        for idx in tqdm(range(warmup_steps), total=warmup_steps):
-            random_query_state = torch.randint(0, self.config["problem_params"]["n"], query_state.shape, device=device)
+        # preparing warmup context        
+        if warmup_steps > 0:
+            warmup_x = torch.randint(0, self.config["problem_params"]["n"], (batch_size, warmup_steps, self.config["problem_params"]["d"]), device=device)
+            warmup_y = torch.stack([problem.target(x) for x, problem in zip(warmup_x, problems)], dim=0)
+            warmup_states = torch.cat([warmup_x, warmup_y.unsqueeze(-1)], dim=-1)
+
             if action_mode == "point":
-                action = torch.randint(0, self.config["problem_params"]["n"], (batch_size, self.config["problem_params"]["d"]), device=device)
+                warmup_actions = torch.randint(0, self.config["problem_params"]["n"], (batch_size, warmup_steps, self.config["problem_params"]["d"]), device=device)
             elif action_mode == "bitflip":
-                action = torch.randint(0, self.config["problem_params"]["n"] + 1, (batch_size, 1), device=device)
-                action = torch.eye(self.config["problem_params"]["d"] + 1, self.config["problem_params"]["d"], dtype=torch.int)[actions]
+                warmup_actions = torch.randint(0, self.config["problem_params"]["n"] + 1, (batch_size, warmup_steps), device=device)
+                warmup_actions = F.one_hot(warmup_actions, self.config["problem_params"]["d"] + 1)
             else:
                 raise ValueError(f"Unknown action mode: {action_mode}")
 
-            next_state = transition(random_query_state, action)
-
-            states[:, idx] = random_query_state
-            actions[:, idx] = action
-            next_states[:, idx] = next_state
-            rewards[:, idx] = self.reward_model.online(
-                states=states[:, :idx+1],
-                actions=actions[:, :idx+1],
-                next_states=next_states[:, :idx+1]
+            warmup_next_states = transition(warmup_states, warmup_actions)
+            warmup_rewards = self.reward_model.offline(
+                states=warmup_states,
+                actions=warmup_actions,
+                next_states=warmup_next_states
             )
+            states[:, :warmup_steps] = warmup_next_states
+            actions[:, :warmup_steps] = warmup_actions
+            next_states[:, :warmup_steps] = warmup_next_states
+            rewards[:, :warmup_steps] = warmup_rewards
 
         # optimization loop
-        for idx in tqdm(range(n_steps), total=n_steps):
+        for idx in tqdm(range(n_steps), total=n_steps, desc='Online'):
             idx += warmup_steps
             probs = self.model(
                 query_state=query_state,

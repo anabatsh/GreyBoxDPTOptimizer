@@ -1,19 +1,29 @@
 import re
 import os
+import sys
 import json
 import yaml
 import torch
 import numpy as np
+import lightning as L
+from functools import partial
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from collections import defaultdict
 from sklearn.manifold import TSNE
+from torch.utils.data import DataLoader
 
 # from matplotlib import pyplot as plt
 
+root_path = '../'
+sys.path.insert(0, root_path)
+
+from problems import Problem
 from scripts.create_problem import load_problem_set
 from scripts.run_solver import load_results
+from train_dpt import DPTSolver, custom_collate_fn, OnlineDataset
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 # ----------------------test_data.ipynb------------------------------
 
@@ -29,7 +39,7 @@ def get_Xy(read_dir, problem_list, suffix='test'):
         y.extend(y_i)
     X = np.stack(X)
     y = np.stack(y)
-    print(X.shape, y.shape)
+    print(f'X shape: {X.shape}, y shape: {y.shape}')
     return X, y
 
 
@@ -45,7 +55,7 @@ def get_tsne(X):
     return X_tsne
 
 
-def show_tsne(problem_list, X, y, title=""):
+def show_tsne(problem_list, X, y, title=''):
     plt.figure(figsize=(6, 5))
     ax = plt.gca()
     ax.set_aspect('equal', adjustable='datalim')
@@ -68,6 +78,7 @@ def show_tsne(problem_list, X, y, title=""):
 
 
 def print_unique(read_dir, problem_list, suffix='test'):
+    print('Number of unique x_best values for every problem:')
     for problem_name in problem_list:
         d_x = []
         # d_solver = []
@@ -159,6 +170,8 @@ def show_meta_results(meta_results):
     for p, problem in enumerate(problem_list):
         i, j = p // m, p % m
 
+        clip_val = None
+
         if 'PROTES' in meta_results[problem]:
             clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
         else:
@@ -184,6 +197,8 @@ def show_meta_results(meta_results):
             #     alpha=0.3
             # )
         axes[i, j].legend(loc=1)
+        # axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # axes[i, j].legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, fancybox=True)
     plt.show()
 
 # ----------------------test_model.ipynb-----------------------------
@@ -239,65 +254,37 @@ def print_sample(sample, rewards, action_mode='point', context_len_max=10):
     target_state_str = f'{tab}{target_state_str}'
     print(target_state_str)
 
+# ----------------------test_model.ipynb-----------------------------
+
+def run_model(model, read_dir, problem, name, suffix='test', budget=100):
+    problem_path = os.path.join(read_dir, problem, suffix)
+    problems = load_problem_set(problem_path)
+    dataset = OnlineDataset(problems)
+    collate_fn = partial(custom_collate_fn, problem_class=Problem)
+    dataloader = DataLoader(
+        dataset=dataset,
+        batch_size=1000,
+        # num_workers=1,
+        # pin_memory=True,
+        # shuffle=False,
+        collate_fn=collate_fn
+    )
+    tester = L.Trainer(logger=False, precision=model.config['precision'])
+    logs = {}
+    for warmup, do_sample in ((0, False), (0, True), (50, False), (50, True)):
+        model.config['do_sample'] = do_sample
+        model.config['warmup_steps'] = warmup
+        model.config['online_steps'] = int(budget - warmup)
+
+        with torch.inference_mode():
+            tester.test(model=model, dataloaders=dataloader)
+
+        warmup_mode = 'warmup' if warmup > 0 else 'no warmup'
+        sample_mode = 'sample' if do_sample else 'argmax'
+        logs[f'{name} ({warmup_mode}) ({sample_mode})'] = {
+            'm_list': np.arange(budget) + 1,
+            'y_list (mean)': model.trajectory.cpu().numpy()
+        }
+    return logs
+
 # -------------------------------------------------------------------
-
-def load_config(config_path):
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f'Config file not found: {config_path}')
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
-
-
-def read_problem(read_path):
-    logs_accumulated = {}
-    for solver_name in os.listdir(read_path):
-        solver_path = os.path.join(read_path, solver_name)
-        with open(solver_path, 'r') as f:
-            logs = json.load(f)
-        logs_accumulated[solver_name[:-5]] = logs
-    return logs_accumulated
-
-
-def read_problemset(read_dir, problems):
-    logs_accumulated = defaultdict(list)
-
-    for problem in problems:
-        read_path = os.path.join(read_dir, problem.name)
-        logs = read_problem(read_path)
-        
-        for k, v in logs.items():
-            logs_accumulated[k].append(v)
-
-    for key, v_list_of_dicts in logs_accumulated.items():
-        v_dict_of_lists = defaultdict(list)
-        for v_dict in v_list_of_dicts:
-            for k, v in v_dict.items():
-                v_dict_of_lists[k].append(v)
-        logs_accumulated[key] = {k: np.mean(v, axis=0) for k, v in v_dict_of_lists.items()}
-
-    return logs_accumulated
-
-
-def plot_logs(logs, problems, plot_gt=False, solvers=[], title=""):
-    solvers = solvers if len(solvers) else logs.keys()
-
-    cmap = plt.get_cmap('jet')
-    colors = cmap(np.linspace(0.05, 0.95, len(solvers)))
-    for solver, c in zip(solvers, colors):
-        val = logs[solver]
-        plt.plot(val['m_list'], val['y_list (mean)'], c=c, label=solver)
-        # plt.fill_between(
-        #     val['m_list'], 
-        #     val['y_list (mean)'] - val['y_list (std)'], 
-        #     val['y_list (mean)'] + val['y_list (std)'], 
-        #     color=c, alpha=0.2
-        # )
-    plt.title(f"{title}, {len(problems)} problems")
-    _, xmax = plt.gca().get_xlim()
-    if plot_gt:
-        gt = np.mean([problem.info['y_min'] for problem in problems])
-        plt.hlines(gt, 0, xmax, colors='black', linestyle='--', label="Ground Truth", zorder=0)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.8))
-    # plt.tight_layout()
-    plt.show()

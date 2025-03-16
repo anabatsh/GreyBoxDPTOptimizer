@@ -30,6 +30,7 @@ class BCELoss(nn.Module):
 
         return {"loss": self.loss_fn(logits, labels)}
 
+
 class CELoss(nn.Module):
     def __init__(self, label_smoothing=0.0): 
         super().__init__()

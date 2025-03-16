@@ -9,13 +9,15 @@ from tqdm.contrib.concurrent import process_map
 
 root_path = '../'
 sys.path.insert(0, root_path)
+
 from scripts.create_problem import main as create_problem
 from scripts.run_solver import main as run_solver
 from scripts.update_info import main as update_info
-from utils import load_config
+from train_dpt import load_config
 
 
 NON_PARALLEL_BASTARDS = ['GUROBI']
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Load configuration file.')
@@ -73,8 +75,7 @@ if __name__ == '__main__':
                     suffix=suffix,
                     solver=solver,
                     budget=args.budget,
-                    n_runs=args.n_runs,
-                    full_info=True
+                    n_runs=args.n_runs
                 )
                 if solver in NON_PARALLEL_BASTARDS:
                     print('[Single-process mode]')

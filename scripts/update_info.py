@@ -34,6 +34,7 @@ def main(problem, read_data_dir, read_res_dir, suffix):
 
     save_problem_set(problems, read_data_path)
 
+
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')

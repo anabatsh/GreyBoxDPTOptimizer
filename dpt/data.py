@@ -148,19 +148,6 @@ class OfflineDataset(OnlineDataset):
             target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
         else:
             raise ValueError(f"Invalid action: {self.action}")
-        
-        y = torch.cat([sample["query_state"][-1].unsqueeze(0), states[:, -1], next_states[:, -1]])
-        y_min, y_max = y.min(), y.max()
-        y_range = y_max - y_min
-
-        query_state[-1] -= y_min
-        query_state[-1] /= y_range
-
-        states[:, -1] -= y_min
-        states[:, -1] /= y_range
-        
-        next_states[:, -1] -= y_min
-        next_states[:, -1] /= y_range
 
         sample |= {
             "states": states.float(),

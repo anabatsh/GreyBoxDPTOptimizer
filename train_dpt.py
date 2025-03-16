@@ -1,14 +1,16 @@
-from email.policy import default
 import os
 import yaml
-import random
+import argparse
 from functools import partial
+from email.policy import default
 from collections import defaultdict
-from tqdm.auto import tqdm
+from dpt.nn import TransformerBlock
 
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
+from torch.distributed.fsdp import MixedPrecision
 
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
@@ -16,19 +18,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import seed_everything, LightningDataModule
 from lightning.pytorch.profilers import PyTorchProfiler
 
-from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
-from torch.distributed.fsdp import MixedPrecision
-
 from scripts.create_problem import load_problem_set
 from dpt.data import OfflineDataset, OnlineDataset
 from dpt.train import DPTSolver
 import problems as pbs
 
-from tqdm.auto import tqdm
-from dpt.model import DPT
-from dpt.nn import TransformerBlock
-import copy
-import argparse
 
 torch.backends.cuda.enable_flash_sdp(True)
 torch.set_float32_matmul_precision("high")
@@ -43,13 +37,16 @@ def load_config(config_path):
         config = yaml.safe_load(file)
     return config
 
+
 def collate_problem_fn(batch, *, collate_fn_map):
     return batch
+
 
 def custom_collate_fn(batch, problem_class):
     custom_collate_fn_map = default_collate_fn_map.copy()
     custom_collate_fn_map[problem_class] = collate_problem_fn
     return collate(batch, collate_fn_map=custom_collate_fn_map)
+
 
 class ProblemDataModule(LightningDataModule):
     def __init__(self, config):
@@ -129,6 +126,7 @@ class ProblemDataModule(LightningDataModule):
             collate_fn=self.collate_fn,
         )
 
+
 def train(config):
     logger = WandbLogger(**config["wandb_params"])
     model = DPTSolver(config)
@@ -168,7 +166,7 @@ def train(config):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('config', type=str, nargs='?', default='configs/config_10.yaml', 
+    parser.add_argument('config', type=str, nargs='?', default='configs/config_50.yaml', 
                         help='Path to the configuration file (default: config.yaml)')
 
     # Parse arguments

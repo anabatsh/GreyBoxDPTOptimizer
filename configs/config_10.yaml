@@ -42,7 +42,7 @@ trajectories_path: "results/normal_10"
 
 label_smoothing: 0.0 #1
 precision: bf16-mixed
-max_epochs: 100
+max_epochs: 20
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null
@@ -57,5 +57,5 @@ num_workers: 0 # 16
 
 strategy: ddp
 exclude_problems: [
-    'Normal(5, 1)',
+    'Normal(25, 1)',
 ]

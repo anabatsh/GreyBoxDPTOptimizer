@@ -16,6 +16,7 @@ def _generate_initial(d, n, r, key):
 
     return [Yl, Ym, Yr]
 
+
 def _interface_matrices(Ym, Yr):
     """Compute the "interface matrices" for the TT-tensor."""
     def body(Z, Y_cur):
@@ -27,6 +28,7 @@ def _interface_matrices(Ym, Yr):
     _, Zm = jax.lax.scan(body, Z, Ym, reverse=True)
 
     return jnp.vstack((Zm, Zr))
+
 
 def _likelihood(Yl, Ym, Yr, Zm, i):
     """Compute the likelihood in a multi-index i for TT-tensor."""
@@ -48,6 +50,7 @@ def _likelihood(Yl, Ym, Yr, Zm, i):
 
     y = jnp.hstack((jnp.array(yl), ym, jnp.array(yr)))
     return jnp.sum(jnp.log(jnp.array(y)))
+
 
 def _sample(Yl, Ym, Yr, Zm, key):
     """Generate sample according to given probability TT-tensor."""
@@ -74,6 +77,7 @@ def _sample(Yl, Ym, Yr, Zm, key):
     il = jnp.array(il, dtype=jnp.int32)
     ir = jnp.array(ir, dtype=jnp.int32)
     return jnp.hstack((il, im, ir))
+
 
 class PROTES(Solver):
     """

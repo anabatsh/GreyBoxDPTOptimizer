@@ -4,6 +4,7 @@ import numpy as np
 from functools import partial
 from .base import Solver
 
+
 class NgSolver(Solver):
     """
     Wrapping Solver for methods from the nevergrad library.
@@ -32,6 +33,7 @@ class NgSolver(Solver):
 
     def update(self, points, targets, constraints):
         self.optimizer.tell(self.points, targets[0].item())
+
 
 OnePlusOne = partial(NgSolver, solver='OnePlusOne')
 PSO = partial(NgSolver, solver='PSO')
