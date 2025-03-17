@@ -166,7 +166,7 @@ def train(config):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('config', type=str, nargs='?', default='configs/config_50.yaml', 
+    parser.add_argument('config', type=str, nargs='?', default='configs/dpt_50.yaml', 
                         help='Path to the configuration file (default: config.yaml)')
 
     # Parse arguments
