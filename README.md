@@ -1,12 +1,20 @@
 ### Decision Pretrained Transformer for Black Box Optimization
 
 ````bash
+python generate_data.py --args
+````
+
+Run `generate_data` to create train, val and test sets for various QUBO problems, run solvers on them, save the results and set the `info` variable for every problem in the sets with the found minimums. Alternatively, do this step by step by running `create_problems` to create datasets of a specified problem, `run_solvers` to solve the problems from a specified set with a specified solver and save the results, and, finally, `update_info` to set the `info` variable for every problem in a specified set with the found minimum.
+
+````bash
 python create_problems.py --args
 python run_solvers.py --args
 python run.py --args
 ````
 
-Run `create_problems` to create train, val and test sets for various QUBO problems. Then, run `run_solvers` to run all solvers on the test set, save results and set the `info` variable of the test problems with the found minimums. Finally, run `run` to choose the best optimizer and run it on the train and val sets. Thus, the value `info` in the train and val problems would be defined.
+Then, run `train_dpt` to train a DPT model on the train sets and validate on the val sets. In order to test the model, go to `notebooks/test_model` and run corresponding cells. There a model can be loaded from a particular checkpoint and run on a specified problem set. 
+
+Moreover, `notebooks/test_data` is available to analyze a problem set, namely to obtain some statistics and print additional information. 
 
 <!-- To run DPT one simply needs execute the following command:
 
