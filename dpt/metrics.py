@@ -41,10 +41,6 @@ class BitflipMetrics(nn.Module):
         dists = (indexes - predictions[..., None]).abs()
         mae = dists.min(dim=-1).values.float()
 
-        # predictions = torch.argmax(predictions, dim=-1)
-        # targets = torch.argmax(targets, dim=-1)
-        # accuracy = (predictions == targets[:, None]).float()
-        # mae = torch.abs(predictions - targets[:, None]).float()
         return {
             "accuracy": accuracy.mean(), 
             # "accuracy_last": accuracy[:, -1].mean(),

@@ -91,11 +91,11 @@ def print_unique(read_dir, problem_list, suffix='test'):
         print(f'{problem_name}: {len(x_unique)}')# {solvers} {stats}')
 
 
-def get_meta_results(problem, solver, read_dir, suffix='test', budget=100, n_steps=10):
+def get_meta_results(problem, solver, read_dir, suffix='test', min_value=0, budget=100, n_steps=10):
     problem_path = os.path.join(read_dir, problem, suffix)
     problem_results = defaultdict(list)
 
-    m_list = np.linspace(0, budget, n_steps, dtype=np.int32)
+    m_list = np.linspace(min_value, budget, n_steps, dtype=np.int32)
 
     for problem in os.listdir(problem_path):
         solver_path = os.path.join(problem_path, problem, solver)
@@ -164,18 +164,18 @@ def show_meta_results(meta_results):
     m = min(len(problem_list), 4)
     n = int(np.ceil(len(problem_list) / m))
 
-    fig, axes = plt.subplots(n, m, figsize=(4*m, 3*n), gridspec_kw=dict(hspace=0.2, wspace=0.25), sharex=True)
+    fig, axes = plt.subplots(n, m, figsize=(5*m, 5*n), gridspec_kw=dict(hspace=0.2, wspace=0.25), sharex=True)
     axes = np.array([axes]) if m == 1 else axes
     axes = axes.reshape(n, m)
     for p, problem in enumerate(problem_list):
         i, j = p // m, p % m
 
-        # clip_val = None
+        clip_val = None
 
-        if 'PROTES' in meta_results[problem]:
-            clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
-        else:
-            clip_val = None
+        # if 'PROTES' in meta_results[problem]:
+        #     clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
+        # else:
+        #     clip_val = None
 
         for solver in meta_results[problem].keys():
             results = meta_results[problem][solver]
@@ -190,6 +190,7 @@ def show_meta_results(meta_results):
             axes[i, j].set_title(title)
             y = np.clip(results['y_list (mean)'], None, clip_val)
             axes[i, j].plot(results['m_list'], y, label=solver)
+            axes[i, j].set_ylim(-31370, -31280)
             # axes[i, j].fill_between(
             #     results['m'], 
             #     y - results['y (std)'], 

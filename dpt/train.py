@@ -35,7 +35,8 @@ class DPTSolver(L.LightningModule):
             self.loss = CELoss(config['label_smoothing']) #BCELoss(config['label_smoothing'])
             self.metrics = PointMetrics()
         elif action == 'bitflip':
-            self.loss = RKLLoss(config['label_smoothing']) #CELoss(config['label_smoothing'])
+            self.loss = CELoss(config['label_smoothing'])
+            # self.loss = RKLLoss(config['label_smoothing'])
             self.metrics = BitflipMetrics()
         else:
             raise ValueError(f"Unknown action type: {action}")

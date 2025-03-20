@@ -120,7 +120,15 @@ class OfflineDataset(OnlineDataset):
             y_next = problem.target(x_next)
             next_states = torch.cat([x_next, y_next.unsqueeze(1)], dim=1)
 
-            if self.target_action == 'gt':
+            if self.target_action == 'greedy':
+                query_x = sample["query_state"][:-1].long()                
+                possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)
+                possible_target_x = possible_actions ^ query_x
+                possible_target_y = problem.target(possible_target_x)
+                target_action = possible_target_y.argmin()
+                target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
+            
+            elif self.target_action == 'gt':
                 target_action = torch.randint(0, problem.d + 1, (1,), dtype=torch.int)[0]
 
                 target_x = sample["target_state"][:-1].long()
@@ -135,20 +143,26 @@ class OfflineDataset(OnlineDataset):
                 sample["query_state"] = query_state.float()
                 target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
 
+            elif self.target_action == 'gt_greedy':
+                target_x = sample["target_state"][:-1].long()
+                query_x = sample["query_state"][:-1].long()
+                target_actions = target_x ^ query_x
+                possible_actions = torch.eye(problem.d).long()[target_actions.to(torch.bool)]
+                possible_actions = torch.cat([possible_actions, torch.zeros(1, possible_actions.shape[-1], dtype=torch.int)], dim=0)
+                possible_target_x = possible_actions ^ query_x
+                possible_target_y = problem.target(possible_target_x)
+                target_action = possible_target_y.argmin()
+                target_action = possible_actions[target_action]
+                last_bit = int(target_action.sum() == 0)
+                target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
+
             elif self.target_action == 'gt_multi':
                 target_x = sample["target_state"][:-1].long()
                 query_x = sample["query_state"][:-1].long()
                 target_action = target_x ^ query_x
                 last_bit = int(target_action.sum() == 0)
                 target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
-                
-            elif self.target_action == 'greedy':
-                query_x = sample["query_state"][:-1].long()                
-                possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)
-                possible_target_x = possible_actions ^ query_x
-                possible_target_y = problem.target(possible_target_x)
-                target_action = possible_target_y.argmin()
-                target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
+
             else:
                 raise ValueError(f"Invalid target action: {self.target_action}")
             

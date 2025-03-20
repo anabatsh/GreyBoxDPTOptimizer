@@ -35,7 +35,7 @@ scheduler_params:
 data_path: "data/normal"
 
 action: "bitflip"
-target_action: "gt_multi"
+target_action: "gt_greedy"
 ad_ratio: 0.0
 trajectories_path: "results/normal"
 

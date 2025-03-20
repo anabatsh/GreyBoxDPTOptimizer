@@ -14,7 +14,6 @@ class Logger:
             'time': None,   # time to find the best solution
             'x_best': None, # best-found argument
             'y_best': None, # best-found target
-            'm_list': [],   # a list of iterations
             'x_list': [],   # a history of best-found arguments
             'y_list': [],   # a history of best-found targets
         }
@@ -37,16 +36,16 @@ class Logger:
         if self.logs['y_best'] is None or (y_best < self.logs['y_best']):
             self.logs['x_best'] = x_best
             self.logs['y_best'] = y_best
-            self.logs['m_list'].append(m)
-            self.logs['x_list'].append(x_best)
-            self.logs['y_list'].append(y_best)
+
+        for point, target in zip(points, targets):
+            self.logs['x_list'].append(point)
+            self.logs['y_list'].append(target)
 
     def finish(self, save_path=None):
         """
         Function to finish the optimization process.
         """
         self.logs['time'] = tpc() - self.t_start
-        self.logs['m_list'] = torch.tensor(self.logs['m_list'])
         self.logs['x_list'] = torch.stack(self.logs['x_list'])
         self.logs['y_list'] = torch.stack(self.logs['y_list'])
         if save_path:
