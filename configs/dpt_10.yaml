@@ -32,7 +32,6 @@ with_scheduler: false
 scheduler_params:
     warmup_epochs: 5
 
-parallel: true
 data_path: "data/normal_10"
 
 action: "bitflip"

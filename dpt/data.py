@@ -133,19 +133,27 @@ class OfflineDataset(OnlineDataset):
                 query_y = problem.target(query_x)
                 query_state = torch.cat([query_x, query_y.unsqueeze(0)])
                 sample["query_state"] = query_state.float()
+                target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
 
+            elif self.target_action == 'gt_multi':
+                target_x = sample["target_state"][:-1].long()
+                query_x = sample["query_state"][:-1].long()
+                target_action = target_x ^ query_x
+                last_bit = int(target_action.sum() == 0)
+                target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
+                
             elif self.target_action == 'greedy':
                 query_x = sample["query_state"][:-1].long()                
                 possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)
                 possible_target_x = possible_actions ^ query_x
                 possible_target_y = problem.target(possible_target_x)
                 target_action = possible_target_y.argmin()
+                target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
             else:
                 raise ValueError(f"Invalid target action: {self.target_action}")
             
             # one-hot encoding
             actions = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[actions]
-            target_action = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[target_action]
         else:
             raise ValueError(f"Invalid action: {self.action}")
 

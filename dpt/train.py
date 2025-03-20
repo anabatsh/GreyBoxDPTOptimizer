@@ -13,13 +13,13 @@ from tqdm.auto import tqdm
 
 try:
     from model import DPT
-    from loss import BCELoss, CELoss
+    from loss import BCELoss, CELoss, RKLLoss
     from schedule import cosine_annealing_with_warmup
     from reward import Reward, ZeroReward
     from metrics import PointMetrics, BitflipMetrics
 except ImportError:
     from .model import DPT
-    from .loss import BCELoss, CELoss
+    from .loss import BCELoss, CELoss, RKLLoss
     from .schedule import cosine_annealing_with_warmup
     from .reward import Reward, ZeroReward
     from .metrics import PointMetrics, BitflipMetrics
@@ -32,10 +32,10 @@ class DPTSolver(L.LightningModule):
 
         action = config['action']
         if action == 'point':
-            self.loss = BCELoss(config['label_smoothing'])
+            self.loss = CELoss(config['label_smoothing']) #BCELoss(config['label_smoothing'])
             self.metrics = PointMetrics()
         elif action == 'bitflip':
-            self.loss = CELoss(config['label_smoothing'])
+            self.loss = RKLLoss(config['label_smoothing']) #CELoss(config['label_smoothing'])
             self.metrics = BitflipMetrics()
         else:
             raise ValueError(f"Unknown action type: {action}")
@@ -210,7 +210,7 @@ class DPTSolver(L.LightningModule):
             rewards[:, :warmup_steps] = warmup_rewards
 
         # optimization loop
-        for idx in tqdm(range(n_steps), total=n_steps, desc='Online'):
+        for idx in tqdm(range(n_steps), total=n_steps, desc='Online', leave=False):
             idx += warmup_steps
             probs = self.model(
                 query_state=query_state,

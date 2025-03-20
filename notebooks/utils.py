@@ -170,7 +170,7 @@ def show_meta_results(meta_results):
     for p, problem in enumerate(problem_list):
         i, j = p // m, p % m
 
-        clip_val = None
+        # clip_val = None
 
         if 'PROTES' in meta_results[problem]:
             clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
@@ -196,9 +196,10 @@ def show_meta_results(meta_results):
             #     y + results['y (std)'], 
             #     alpha=0.3
             # )
-        axes[i, j].legend(loc=1)
+        # axes[i, j].legend(loc=1)
         # axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
         # axes[i, j].legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, fancybox=True)
+    axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
 
 # ----------------------test_model.ipynb-----------------------------

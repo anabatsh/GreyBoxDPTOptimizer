@@ -8,9 +8,9 @@ wandb_params:
 model_params:
     state_dim: 51
     action_dim: 51
-    seq_len: 100
-    hidden_dim: 64
-    num_layers: 4
+    seq_len: 200
+    hidden_dim: 128
+    num_layers: 5
     num_heads: 4
     attention_dropout: 0.0 #0.5
     residual_dropout: 0.0 # 0.1
@@ -32,17 +32,16 @@ with_scheduler: false
 scheduler_params:
     warmup_epochs: 5
 
-parallel: true
 data_path: "data/normal"
 
 action: "bitflip"
-target_action: "gt"
+target_action: "gt_multi"
 ad_ratio: 0.0
 trajectories_path: "results/normal"
 
 label_smoothing: 0.0 #1
 precision: bf16-mixed
-max_epochs: 20
+max_epochs: 100
 log_every_n_steps: 1
 seed: 42
 # clip_grad: null

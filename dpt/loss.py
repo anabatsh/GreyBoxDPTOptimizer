@@ -1,4 +1,6 @@
+import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class BCELoss(nn.Module):
@@ -50,3 +52,30 @@ class CELoss(nn.Module):
         labels = targets.unsqueeze(-1).repeat(1, 1, outputs.size(1)).float()
 
         return {"loss": self.loss_fn(logits, labels)}
+    
+
+class RKLLoss(nn.Module):
+    def __init__(self, label_smoothing=0.0): 
+        super().__init__()
+        self.loss_fn = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+
+    def forward(self, outputs, targets, *args, **kwargs):
+        """
+        outputs - [batch_size, seq_len + 1, action_dim]
+        targets - [batch_size, action_dim]
+        """
+        # Reversed KL for parallel tasks
+
+        # [batch_size, seq_len + 1, action_dim]
+        q = F.softmax(outputs, dim=-1)
+
+        # [batch_size, seq_len + 1, action_dim]
+        labels = targets.unsqueeze(1).repeat(1, outputs.size(1), 1).float()
+        p = labels / labels.sum(dim=-1, keepdim=True)
+
+        loss_qq = (q * torch.log(q + 1e-6)).sum(-1)
+        loss_qp = (q * torch.log(p + 1e-6)).sum(-1)
+
+        loss = (loss_qq - loss_qp).mean()
+
+        return {"loss": loss}

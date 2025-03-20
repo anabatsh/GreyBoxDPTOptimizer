@@ -31,10 +31,20 @@ class BitflipMetrics(nn.Module):
         predictions - [batch_size, seq_len + 1, action_dim]
         targets     - [batch_size, action_dim]
         """
+        targets = targets.unsqueeze(1)
+        accuracy = torch.any((predictions * targets), dim=-1).float()
         predictions = torch.argmax(predictions, dim=-1)
-        targets = torch.argmax(targets, dim=-1)
-        accuracy = (predictions == targets[:, None]).float()
-        mae = torch.abs(predictions - targets[:, None]).float()
+
+        d = targets.shape[-1]
+        indexes = torch.arange(1, d + 1, device=targets.device) * targets - 1
+        indexes[indexes < 0] = 3 * d # imax
+        dists = (indexes - predictions[..., None]).abs()
+        mae = dists.min(dim=-1).values.float()
+
+        # predictions = torch.argmax(predictions, dim=-1)
+        # targets = torch.argmax(targets, dim=-1)
+        # accuracy = (predictions == targets[:, None]).float()
+        # mae = torch.abs(predictions - targets[:, None]).float()
         return {
             "accuracy": accuracy.mean(), 
             # "accuracy_last": accuracy[:, -1].mean(),
