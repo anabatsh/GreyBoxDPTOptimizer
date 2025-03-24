@@ -5,6 +5,7 @@ import json
 import yaml
 import torch
 import numpy as np
+import pandas as pd
 import lightning as L
 from functools import partial
 import matplotlib.pyplot as plt
@@ -91,11 +92,11 @@ def print_unique(read_dir, problem_list, suffix='test'):
         print(f'{problem_name}: {len(x_unique)}')# {solvers} {stats}')
 
 
-def get_meta_results(problem, solver, read_dir, suffix='test', min_value=0, budget=100, n_steps=10):
+def get_meta_results(problem, solver, read_dir, suffix='test', budget=100, n_steps=10):
     problem_path = os.path.join(read_dir, problem, suffix)
     problem_results = defaultdict(list)
 
-    m_list = np.linspace(min_value, budget, n_steps, dtype=np.int32)
+    # m_list = np.linspace(0, budget, n_steps, dtype=np.int32)
 
     for problem in os.listdir(problem_path):
         solver_path = os.path.join(problem_path, problem, solver)
@@ -104,17 +105,55 @@ def get_meta_results(problem, solver, read_dir, suffix='test', min_value=0, budg
         for seed in os.listdir(solver_path):
             seed_path = os.path.join(solver_path, seed)
             results = load_results(seed_path)
-            y_list.append(np.interp(m_list, results['m_list'], results['y_list']))
+            y = results['y_list']
+            # if solver == 'GUROBI':
+            #     y = np.minimum.accumulate(y)
+            # y = np.minimum.accumulate(y)
+            # y = np.array([min(y[:i+1]) for i in range(len(y))])
+            if len(y) < budget:
+                y = np.pad(y, (0, budget - len(y)), 'edge')
+            elif len(y) > budget:
+                y = y[:budget]
+            y_list.append(y)
+            # y_list.append(np.interp(m_list, m, y))
 
         problem_results['y_list (mean)'].append(np.mean(y_list, axis=0))
         problem_results['y_list (std)'].append(np.std(y_list, axis=0))
 
     problem_results = {
-        'm_list': m_list,
+        'm_list': np.arange(budget),
         'y_list (mean)': np.mean(problem_results['y_list (mean)'], axis=0),
         'y_list (std)': np.mean(problem_results['y_list (std)'], axis=0),
     }
     return problem_results
+
+
+def scale_meta_dict(meta_dict):
+    d = {}
+    for problem in meta_dict.keys():
+        d[problem] = {}
+        y_mins = []
+        y_maxs = []
+        for solver in meta_dict[problem].keys():
+            y_mean = meta_dict[problem][solver]['y_list (mean)']
+            y_mins.append(y_mean.min())
+            y_maxs.append(y_mean.max())
+        y_min = np.min(y_mins)
+        y_max = np.max(y_maxs)
+        y_range = y_max - y_min
+
+        for solver in meta_dict[problem].keys():
+            m_list = meta_dict[problem][solver]['m_list']
+            y_mean = meta_dict[problem][solver]['y_list (mean)']
+            # y_std = meta_dict[problem][solver]['y_list (std)']
+            y_mean_scaled = (y_mean - y_min) / y_range
+            # y_std_scaled = y_std / y_range
+            d[problem][solver] = {
+                'm_list': m_list,
+                'y_list (mean)': y_mean_scaled,
+                # 'y_list (std)': y_std_scaled
+            }
+    return d
 
 
 def get_trajectory_stats(problem, solver, read_dir, suffix='test'):
@@ -127,22 +166,20 @@ def get_trajectory_stats(problem, solver, read_dir, suffix='test'):
         for seed in os.listdir(solver_path):
             seed_path = os.path.join(solver_path, seed)
             results = load_results(seed_path)
-            m_list = results['m_list']
-            problem_stats['len'].append(len(m_list))
-            problem_stats['last'].append(m_list[-1])
+            y_list = results['y_list']
+            problem_stats['len'].append(len(y_list))
+            problem_stats['min'].append(np.argmin(y_list))
 
     problem_stats = {
-        'len (min)': np.min(problem_stats['len']).item(),
-        'len (max)': np.max(problem_stats['len']).item(),
         'len (mean)': np.mean(problem_stats['len']).item(),
-        'last (min)': np.min(problem_stats['last']).item(),
-        'last (max)': np.max(problem_stats['last']).item(),
-        'last (mean)': np.mean(problem_stats['last']).item(),
+        'len (std)': np.std(problem_stats['len']).item(),
+        'min (mean)': np.mean(problem_stats['min']).item(),
+        'min (std)': np.std(problem_stats['min']).item(),
     }
     return problem_stats
 
 
-def get_problem_averaged_meta_dict(meta_dict, name='all problems'):
+def get_problem_averaged_meta_dict(meta_dict):
     d = {}
     for problem in meta_dict.keys():
         for solver in meta_dict[problem].keys():
@@ -155,7 +192,7 @@ def get_problem_averaged_meta_dict(meta_dict, name='all problems'):
     for solver in d.keys():
         for key in d[solver].keys():
             d[solver][key] = np.mean(d[solver][key], axis=0)
-    return {name: d}
+    return d
 
 
 def show_meta_results(meta_results):
@@ -164,14 +201,14 @@ def show_meta_results(meta_results):
     m = min(len(problem_list), 4)
     n = int(np.ceil(len(problem_list) / m))
 
-    fig, axes = plt.subplots(n, m, figsize=(5*m, 5*n), gridspec_kw=dict(hspace=0.2, wspace=0.25), sharex=True)
+    fig, axes = plt.subplots(n, m, figsize=(4*m, 4*n), gridspec_kw=dict(hspace=0.2, wspace=0.25), sharex=True)
     axes = np.array([axes]) if m == 1 else axes
     axes = axes.reshape(n, m)
     for p, problem in enumerate(problem_list):
         i, j = p // m, p % m
+        axes[i, j].set_title(problem)
 
         clip_val = None
-
         # if 'PROTES' in meta_results[problem]:
         #     clip_val = meta_results[problem]['PROTES']['y_list (mean)'][0]
         # else:
@@ -179,28 +216,29 @@ def show_meta_results(meta_results):
 
         for solver in meta_results[problem].keys():
             results = meta_results[problem][solver]
-            if 'mode' in problem:
-                title = re.findall(r'mode_(.*?)(?=__)', problem)[0]
-                if title == 'normal':
-                    loc = int(re.findall(r'loc_(.*?)(?=__)', problem)[0])
-                    scale = int(re.findall(r'scale_(.*)', problem)[0])
-                    title = f'N({loc}, {scale})'
-            else:
-                title = problem
-            axes[i, j].set_title(title)
-            y = np.clip(results['y_list (mean)'], None, clip_val)
-            axes[i, j].plot(results['m_list'], y, label=solver)
-            axes[i, j].set_ylim(-31370, -31280)
+            m_list = results['m_list']
+            y = results['y_list (mean)']
+            # y = pd.Series(y).ewm(alpha=0.1).mean()
+            # y = np.clip(y, None, clip_val)
+            axes[i, j].plot(m_list, y, label=solver)
+            
+            # axes[i, j].set_ylim(-31500, -30500)
             # axes[i, j].fill_between(
             #     results['m'], 
             #     y - results['y (std)'], 
             #     y + results['y (std)'], 
             #     alpha=0.3
             # )
-        # axes[i, j].legend(loc=1)
+        # ymin, ymax = axes[i, j].get_ylim()
+        # axes[i, j].set_yticks(np.linspace(ymin, ymax, 5))
+        axes[i, j].legend(loc=1)
         # axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        # axes[i, j].legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, fancybox=True)
-    axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # axes[i, j].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    for k in range(j+1, m):
+        axes[i, k].axis('off')
+
+    # lines, labels = axes[0, 0].get_legend_handles_labels()
+    # fig.legend(lines, labels, loc='upper center')
     plt.show()
 
 # ----------------------test_model.ipynb-----------------------------
@@ -273,7 +311,7 @@ def run_model(model, read_dir, problem, name, suffix='test', budget=100):
     )
     tester = L.Trainer(logger=False, precision=model.config['precision'])
     logs = {}
-    for warmup, do_sample in ((0, False), (0, True), (50, False), (50, True)):
+    for warmup, do_sample in ((50, True),):#(0, False), (0, True), (50, False), (50, True)):
         model.config['do_sample'] = do_sample
         model.config['warmup_steps'] = warmup
         model.config['online_steps'] = int(budget - warmup)

@@ -1,7 +1,7 @@
 solver_list:
-  - solver: RandomSearch
-    kwargs: {}
   - solver: PSO
     kwargs: {}
   - solver: PROTES
+    kwargs: {}
+  - solver: GUROBI
     kwargs: {}

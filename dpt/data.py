@@ -72,7 +72,7 @@ class OfflineDataset(OnlineDataset):
             trajectory = torch.cat([x, y.unsqueeze(1)], dim=1)
             n = len(trajectory)
             indexes = np.random.choice(n, min(n, seq_len), replace=False)
-            states = trajectory[indexes]
+            states = trajectory[sorted(indexes)]
         return states
 
     def get_random_probes(self, problem, seq_len=10):
@@ -120,6 +120,9 @@ class OfflineDataset(OnlineDataset):
             y_next = problem.target(x_next)
             next_states = torch.cat([x_next, y_next.unsqueeze(1)], dim=1)
 
+            # one-hot encoding
+            actions = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[actions]
+
             if self.target_action == 'greedy':
                 query_x = sample["query_state"][:-1].long()                
                 possible_actions = torch.eye(problem.d + 1, problem.d, dtype=torch.int)
@@ -163,11 +166,23 @@ class OfflineDataset(OnlineDataset):
                 last_bit = int(target_action.sum() == 0)
                 target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
 
+            elif self.target_action == 'gt_ad':
+                context = self.get_solver_probes(problem, self.seq_len+1, self.results_dir, self.suffix)
+                states = context[:-1]
+                next_states = context[1:]
+                actions = context[1:, :-1].long() ^ context[:-1, :-1].long()
+                last_bit = (actions.sum(-1) == 0).long()
+                actions = torch.cat([actions, last_bit.unsqueeze(-1)], dim=-1)
+
+                target_x = sample["target_state"][:-1].long()
+                query_x = sample["query_state"][:-1].long()
+                target_action = target_x ^ query_x
+                last_bit = int(target_action.sum() == 0)
+                target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
+
             else:
                 raise ValueError(f"Invalid target action: {self.target_action}")
             
-            # one-hot encoding
-            actions = torch.eye(problem.d + 1, problem.d + 1, dtype=torch.int)[actions]
         else:
             raise ValueError(f"Invalid action: {self.action}")
 

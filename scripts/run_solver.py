@@ -3,6 +3,7 @@ import sys
 import json
 import torch
 import argparse
+from tqdm.auto import tqdm
 
 root_path = '../'
 sys.path.insert(0, root_path)
@@ -13,7 +14,7 @@ import solvers as slv
 
 def run_solver(problems, solver, save_dir, budget, n_runs=1):
     solver_class = getattr(slv, solver)
-    for problem in problems:
+    for problem in tqdm(problems):
         for seed in range(n_runs):
             save_path = os.path.join(save_dir, problem.name, solver)
             os.makedirs(save_path, exist_ok=True)
@@ -43,13 +44,13 @@ def main(problem, read_dir, save_dir, suffix, solver, budget, n_runs):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--problem', type=str, default="Normal(0, 1)")
-    parser.add_argument('--read_dir', type=str, default="../data/normal_10")
-    parser.add_argument('--save_dir', type=str, default="../results/normal_10")
-    parser.add_argument('--suffix', type=str, default="test")
-    parser.add_argument('--solver', type=str, default="PROTES")
-    parser.add_argument('--n_runs', type=int, default=1)
-    parser.add_argument('--budget', type=int, default=500)
+    parser.add_argument('--problem', type=str, default="Normal(40, 1)")
+    parser.add_argument('--read_dir', type=str, default="../data/normal")
+    parser.add_argument('--save_dir', type=str, default="../results/normal_gurobi")
+    parser.add_argument('--suffix', type=str, default="train")
+    parser.add_argument('--solver', type=str, default="GUROBI")
+    parser.add_argument('--n_runs', type=int, default=3)
+    parser.add_argument('--budget', type=int, default=5000)
 
     # Parse arguments
     args = parser.parse_args()

@@ -1,7 +1,4 @@
 import torch
-from time import perf_counter as tpc
-
-LARGE_CONST = 1e+5
 
 
 class Logger:
@@ -9,23 +6,20 @@ class Logger:
     Base class to track sample-update optimization.
     """
     def __init__(self):
-        self.t_start = tpc()
         self.logs = {
-            'time': None,   # time to find the best solution
             'x_best': None, # best-found argument
             'y_best': None, # best-found target
             'x_list': [],   # a history of best-found arguments
             'y_list': [],   # a history of best-found targets
         }
 
-    def update(self, m, points, targets, constraints):
+    def update(self, points, targets):
         """
         Function to perform updating.
         Input:
             m - current optimization step (int)
             points - points sampled in the step m (iterable of shape [batch_size, d])
             targets - target values corrresponding to the points (iterable of shape [batch_size, d])
-            constraints -  constraint flags corrresponding to the points (iterable of shape [batch_size, d])
         """
         # if batch_size > 0, get the best point in term of the minimal target value
         i_best = torch.argmin(targets)
@@ -37,15 +31,13 @@ class Logger:
             self.logs['x_best'] = x_best
             self.logs['y_best'] = y_best
 
-        for point, target in zip(points, targets):
-            self.logs['x_list'].append(point)
-            self.logs['y_list'].append(target)
+        self.logs['x_list'].extend(points)
+        self.logs['y_list'].extend(targets)
 
     def finish(self, save_path=None):
         """
         Function to finish the optimization process.
         """
-        self.logs['time'] = tpc() - self.t_start
         self.logs['x_list'] = torch.stack(self.logs['x_list'])
         self.logs['y_list'] = torch.stack(self.logs['y_list'])
         if save_path:
@@ -98,7 +90,7 @@ class Solver():
         points = torch.randint(0, self.problem.n, (self.k_samples, self.problem.d))
         return points
 
-    def update(self, points, targets, constraints):
+    def update(self, points, targets):
         """
         Function to perform updating.
         """
@@ -113,15 +105,14 @@ class Solver():
         # define a logger to track the optimization process
         self.logger = Logger()
 
-        # perform warmastart and generate k_init initial samples of (argument, target, constraints)
+        # perform warmastart and generate k_init initial samples
         if self.k_init:
             points = self.init_points()
             targets = self.problem.target(points)
-            constraints = torch.ones_like(targets) # self.problem.constraints(points)
-            self.update(points, targets, constraints)
-            self.logger.update(self.k_init, points, targets, constraints)
+            self.update(points, targets)
+            self.logger.update(points, targets)
 
-        # perform sampling and updating until the budget is exhausted # or until convergency
+        # perform sampling and updating until the budget is exhausted or until convergency
         i = self.k_init
         while i < self.budget:
             # sample new k_sample points
@@ -134,9 +125,8 @@ class Solver():
                     points = points[:self.budget - i]
                     i = self.budget
                 targets = self.problem.target(points)
-                constraints = torch.ones_like(targets) # self.problem.constraints(points)
-                self.update(points, targets, constraints)
-                self.logger.update(i, points, targets, constraints)
+                self.update(points, targets)
+                self.logger.update(points, targets)
             else:
                 # if the algortithm hasn't managed to sample a single point, stop the process
                 break

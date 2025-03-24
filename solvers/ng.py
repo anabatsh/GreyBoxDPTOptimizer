@@ -31,7 +31,7 @@ class NgSolver(Solver):
         points = torch.tensor([self.points.value]).long()
         return points
 
-    def update(self, points, targets, constraints):
+    def update(self, points, targets):
         self.optimizer.tell(self.points, targets[0].item())
 
 

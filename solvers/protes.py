@@ -131,7 +131,7 @@ class PROTES(Solver):
         points = torch.tensor(I.__array__()).long()
         return points
 
-    def update(self, points, targets, constraints):
+    def update(self, points, targets):
         points = jnp.array(points)
         targets = jnp.array(targets)
         ind = jnp.argsort(targets)[:self.k_top]
