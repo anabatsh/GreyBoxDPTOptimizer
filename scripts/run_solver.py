@@ -45,8 +45,8 @@ if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
     parser.add_argument('--problem', type=str, default="Normal(40, 1)")
-    parser.add_argument('--read_dir', type=str, default="../data/normal")
-    parser.add_argument('--save_dir', type=str, default="../results/normal_gurobi")
+    parser.add_argument('--read_dir', type=str, default="../../data/normal")
+    parser.add_argument('--save_dir', type=str, default="../../trajectories/normal_gurobi")
     parser.add_argument('--suffix', type=str, default="train")
     parser.add_argument('--solver', type=str, default="GUROBI")
     parser.add_argument('--n_runs', type=int, default=3)

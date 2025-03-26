@@ -38,8 +38,8 @@ def main(problem, read_data_dir, read_res_dir, suffix):
 if __name__ == '__main__':
     # Set up argparse
     parser = argparse.ArgumentParser(description='Load configuration file.')
-    parser.add_argument('--read_data_dir', type=str, default="../data/test")
-    parser.add_argument('--read_res_dir', type=str, default="../results/test")
+    parser.add_argument('--read_data_dir', type=str, default="../../data/test")
+    parser.add_argument('--read_res_dir', type=str, default="../../trajectories/test")
     parser.add_argument('--suffix', type=str, default="test")
     parser.add_argument('--problem', type=str, default="QUBO")
 

@@ -12,19 +12,11 @@ class BCELoss(nn.Module):
     def forward(self, outputs, targets, *args, **kwargs):
         """
         outputs - [batch_size, seq_len + 1, action_dim]
-        targets - [batch_size, action_dim]
+        targets - [batch_size, seq_len + 1, action_dim]
         """
-        # Binary Cross-Entropy for parallel tasks
-
-        # Reshape outputs to [batch_size * (seq_len + 1), action_dim]
+        # Reshape to [batch_size * (seq_len + 1), action_dim]
         logits = outputs.view(-1, outputs.size(-1)).contiguous()
-
-        # Repeat targets to match the sequence length dimension
-        # targets will be [batch_size, seq_len + 1, action_dim] after repeat
-        targets = targets.float().unsqueeze(1).repeat(1, outputs.size(1), 1)
-
-        # Reshape targets to [batch_size * (seq_len + 1), action_dim]
-        labels = targets.view(-1, targets.size(-1)).contiguous()
+        labels = targets.view(-1, outputs.size(-1)).float().contiguous()
 
         # Apply label smoothing
         if self.smoothing > 0:
@@ -41,18 +33,13 @@ class CELoss(nn.Module):
     def forward(self, outputs, targets, *args, **kwargs):
         """
         outputs - [batch_size, seq_len + 1, action_dim]
-        targets - [batch_size, action_dim]
-        """
-        # Cross-Entropy for parallel tasks
-
-        # Reshape outputs to [batch_size, action_dim, seq_len + 1]
+        targets - [batch_size, seq_len + 1, action_dim]
+        """        
+        # Reshape to [batch_size, action_dim, seq_len + 1]
         logits = outputs.permute(0, 2, 1)
-
-        # Repeat targets to match the outputs shape [batch_size, action_dim, seq_len + 1]
-        labels = targets.unsqueeze(-1).repeat(1, 1, outputs.size(1)).float()
-
+        labels = targets.permute(0, 2, 1).float()
         return {"loss": self.loss_fn(logits, labels)}
-    
+
 
 class RKLLoss(nn.Module):
     def __init__(self, label_smoothing=0.0): 
@@ -62,20 +49,17 @@ class RKLLoss(nn.Module):
     def forward(self, outputs, targets, *args, **kwargs):
         """
         outputs - [batch_size, seq_len + 1, action_dim]
-        targets - [batch_size, action_dim]
+        targets - [batch_size, seq_len + 1, action_dim]
         """
-        # Reversed KL for parallel tasks
-
         # [batch_size, seq_len + 1, action_dim]
         q = F.softmax(outputs, dim=-1)
 
         # [batch_size, seq_len + 1, action_dim]
-        labels = targets.unsqueeze(1).repeat(1, outputs.size(1), 1).float()
+        labels = targets.float()
         p = labels / labels.sum(dim=-1, keepdim=True)
 
         loss_qq = (q * torch.log(q + 1e-6)).sum(-1)
         loss_qp = (q * torch.log(p + 1e-6)).sum(-1)
 
         loss = (loss_qq - loss_qp).mean()
-
         return {"loss": loss}

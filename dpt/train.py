@@ -25,24 +25,33 @@ except ImportError:
     from .metrics import PointMetrics, BitflipMetrics
 
 
+LOSS = {
+    "bce": BCELoss,
+    "ce": CELoss,
+    "rkl": RKLLoss
+}
+
+METRICS = {
+    "point": PointMetrics,
+    "bitflip": BitflipMetrics
+}
+
+REWARDS = {
+    "zero": ZeroReward,
+    "default": Reward
+}
+
 class DPTSolver(L.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-
-        action = config['action']
-        if action == 'point':
-            self.loss = CELoss(config['label_smoothing']) #BCELoss(config['label_smoothing'])
-            self.metrics = PointMetrics()
-        elif action == 'bitflip':
-            self.loss = CELoss(config['label_smoothing'])
-            # self.loss = RKLLoss(config['label_smoothing'])
-            self.metrics = BitflipMetrics()
-        else:
-            raise ValueError(f"Unknown action type: {action}")
-        
-        self.reward_model = Reward()
-        self.model = DPT(**self.config["model_params"])
+        self.loss = CELoss()
+        self.metrics = PointMetrics()
+        self.reward_model = ZeroReward()
+        # self.loss = LOSS[config['loss']](config['label_smoothing'])
+        # self.metrics = METRICS[config['action']]()
+        # self.reward_model = REWARDS[config['reward']]()
+        # self.model = DPT(**self.config["model_params"])
         self.save_hyperparameters(ignore=["model, reward_model, loss, metrics"])
 
     def configure_optimizers(self):
@@ -210,6 +219,12 @@ class DPTSolver(L.LightningModule):
             next_states[:, :warmup_steps] = warmup_next_states
             rewards[:, :warmup_steps] = warmup_rewards
 
+        # print(self.config['action'])
+        # print(states.shape)
+        # print(actions.shape)
+        # print(next_states.shape)
+        # print(rewards.shape)
+
         # optimization loop
         for idx in tqdm(range(n_steps), total=n_steps, desc='Online', leave=False):
             idx += warmup_steps
@@ -219,18 +234,19 @@ class DPTSolver(L.LightningModule):
                 actions=actions[:, :idx][:, -seq_len:],
                 next_states=next_states[:, :idx][:, -seq_len:],
                 rewards=rewards[:, :idx][:, -seq_len:]
-            )[:, -1, :] 
+            )[:, -1, :]
 
             temperature = temperature_function(idx / n_steps)
             prediction = self.get_predictions(probs, do_sample, temperature)
-
             # transition
             next_state = transition(query_state, prediction)
 
             states[:, idx] = query_state
             actions[:, idx] = prediction
             next_states[:, idx] = next_state
-            rewards[:, idx] = self.reward_model.online(
+            
+            rewards[:, :idx+1] = self.reward_model.online(
+            # rewards[:, idx] = self.reward_model.online(
                 states=states[:, :idx+1],
                 actions=actions[:, :idx+1],
                 next_states=next_states[:, :idx+1]

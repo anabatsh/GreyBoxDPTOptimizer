@@ -54,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_train', type=int, default=10)
     parser.add_argument('--problem', type=str, default="QUBO")
     parser.add_argument('--kwargs', type=json.loads, default={})
-    parser.add_argument('--save_dir', type=str, default="../data/test")
+    parser.add_argument('--save_dir', type=str, default="../../data/test")
     parser.add_argument('--name', type=str, default="QUBO")
 
     # Parse arguments

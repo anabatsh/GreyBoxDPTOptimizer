@@ -9,11 +9,11 @@ class PointMetrics(nn.Module):
     def forward(self, targets, predictions, *args, **kwargs):
         """
         predictions - [batch_size, seq_len + 1, action_dim]
-        targets     - [batch_size, action_dim]
+        targets     - [batch_size, seq_len + 1, action_dim]
         """
         targets = targets.long()
-        accuracy = (predictions == targets[:, None]).float()
-        mae = torch.abs(predictions - targets[:, None]).float()
+        accuracy = (predictions == targets).float()
+        mae = torch.abs(predictions - targets).float()
         return {
             "accuracy": accuracy.mean(), 
             # "accuracy_last": accuracy[:, -1].mean(),
@@ -29,9 +29,8 @@ class BitflipMetrics(nn.Module):
     def forward(self, targets, predictions, *args, **kwargs):
         """
         predictions - [batch_size, seq_len + 1, action_dim]
-        targets     - [batch_size, action_dim]
+        targets     - [batch_size, seq_len + 1, action_dim]
         """
-        targets = targets.unsqueeze(1)
         accuracy = torch.any((predictions * targets), dim=-1).float()
         predictions = torch.argmax(predictions, dim=-1)
 

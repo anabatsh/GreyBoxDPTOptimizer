@@ -90,25 +90,27 @@ class OfflineDataset(OnlineDataset):
         problem = sample["problem"]
 
         if self.action == 'point':
-            seq_len = self.seq_len + 1
 
-            n_solver = int(self.ad_ratio * seq_len)
-            states_solver = self.get_solver_probes(problem, n_solver, self.results_dir, self.suffix)
+            if self.target_action == 'max':
+                seq_len = self.seq_len + 1
+                solver_context = self.get_solver_probes(problem, seq_len, self.results_dir, self.suffix)
+                random_context = self.get_random_probes(problem, seq_len - len(context))
+                context = torch.cat([solver_context, random_context])[torch.randperm(seq_len)]
+                states = context[:-1]
+                actions = context[1:, :-1]
+                next_states = context[1:]
+                target_action = sample["target_state"][:-1]
 
-            n_random = seq_len - len(states_solver)
-            states_random = self.get_random_probes(problem, n_random)
+            # elif self.target_action == 'next':
+            #     states = self.get_solver_probes(problem, self.seq_len, self.results_dir, self.suffix)
+            #     sample["query_state"] = torch.zeros_like(sample["query_state"])
+            #     actions = torch.zeros_like(states[:, :-1])
+            #     next_states = torch.zeros_like(states)
+            #     target_action = torch.cat([states[1:, :-1], sample["target_state"][:-1].unsqueeze(0)])
 
-            # print(f'ratio = {self.ad_ratio} seq_len = {seq_len}')
-            # print(f'set:  solver = {n_solver} random = {seq_len - n_solver} ratio = {n_solver/seq_len}')
-            # print(f'real: solver = {len(states_solver)} random = {n_random} ratio = {1 - n_random/seq_len}')
-            # print()
-
-            context = torch.cat([states_solver, states_random])[torch.randperm(seq_len)]
-            states = context[:-1]
-            actions = context[1:, :-1]
-            next_states = context[1:]
-            target_action = sample["target_state"][:-1]
-
+            else:
+                raise ValueError(f"Invalid target action: {self.target_action} for action {self.action}.")
+            
         elif self.action == 'bitflip':
             states = self.get_random_probes(problem, self.seq_len)
             actions = torch.randint(0, problem.d + 1, (self.seq_len,), dtype=torch.int)
@@ -180,11 +182,34 @@ class OfflineDataset(OnlineDataset):
                 last_bit = int(target_action.sum() == 0)
                 target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
 
+            elif self.target_action == 'gt_ad_greedy':
+                context = self.get_solver_probes(problem, self.seq_len+1, self.results_dir, self.suffix)
+                states = context[:-1]
+                next_states = context[1:]
+                actions = context[1:, :-1].long() ^ context[:-1, :-1].long()
+                last_bit = (actions.sum(-1) == 0).long()
+                actions = torch.cat([actions, last_bit.unsqueeze(-1)], dim=-1)
+
+                target_x = sample["target_state"][:-1].long()
+                query_x = sample["query_state"][:-1].long()
+                target_actions = target_x ^ query_x
+                possible_actions = torch.eye(problem.d).long()[target_actions.to(torch.bool)]
+                possible_actions = torch.cat([possible_actions, torch.zeros(1, possible_actions.shape[-1], dtype=torch.int)], dim=0)
+                possible_target_x = possible_actions ^ query_x
+                possible_target_y = problem.target(possible_target_x)
+                target_action = possible_target_y.argmin()
+                target_action = possible_actions[target_action]
+                last_bit = int(target_action.sum() == 0)
+                target_action = torch.cat([target_action, torch.tensor([last_bit])], dim=0)
+
             else:
                 raise ValueError(f"Invalid target action: {self.target_action}")
             
         else:
             raise ValueError(f"Invalid action: {self.action}")
+
+        if target_action.ndim == 1:
+            target_action = target_action.repeat(self.seq_len + 1, 1)
 
         sample |= {
             "states": states.float(),

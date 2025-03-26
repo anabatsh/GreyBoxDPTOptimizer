@@ -7,7 +7,7 @@ wandb_params:
 
 model_params:
     state_dim: 51
-    action_dim: 51
+    action_dim: 50
     seq_len: 200
     hidden_dim: 128
     num_layers: 5
@@ -34,11 +34,13 @@ scheduler_params:
 
 data_path: "data/normal"
 
-action: "bitflip"
-target_action: "gt"
+action: "point"
+target_action: "next"
 ad_ratio: 0.0
 trajectories_path: "results/normal"
 
+loss: "ce"
+reward: "zero"
 label_smoothing: 0.0 #1
 precision: bf16-mixed
 max_epochs: 100

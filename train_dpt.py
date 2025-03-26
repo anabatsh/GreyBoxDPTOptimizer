@@ -64,6 +64,7 @@ class ProblemDataModule(LightningDataModule):
         for name in config['exclude_problems']:
             problem_names.remove(name)
 
+
         self.collate_fn = partial(custom_collate_fn, problem_class=getattr(pbs, 'Problem'))
         self.data = defaultdict(list)
         for suffix in ('train', 'val', 'test'):

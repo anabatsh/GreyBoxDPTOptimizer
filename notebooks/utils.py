@@ -92,11 +92,9 @@ def print_unique(read_dir, problem_list, suffix='test'):
         print(f'{problem_name}: {len(x_unique)}')# {solvers} {stats}')
 
 
-def get_meta_results(problem, solver, read_dir, suffix='test', budget=100, n_steps=10):
+def get_meta_results(problem, solver, read_dir, suffix='test'):
     problem_path = os.path.join(read_dir, problem, suffix)
     problem_results = defaultdict(list)
-
-    # m_list = np.linspace(0, budget, n_steps, dtype=np.int32)
 
     for problem in os.listdir(problem_path):
         solver_path = os.path.join(problem_path, problem, solver)
@@ -108,20 +106,12 @@ def get_meta_results(problem, solver, read_dir, suffix='test', budget=100, n_ste
             y = results['y_list']
             # if solver == 'GUROBI':
             #     y = np.minimum.accumulate(y)
-            # y = np.minimum.accumulate(y)
-            # y = np.array([min(y[:i+1]) for i in range(len(y))])
-            if len(y) < budget:
-                y = np.pad(y, (0, budget - len(y)), 'edge')
-            elif len(y) > budget:
-                y = y[:budget]
             y_list.append(y)
-            # y_list.append(np.interp(m_list, m, y))
 
         problem_results['y_list (mean)'].append(np.mean(y_list, axis=0))
         problem_results['y_list (std)'].append(np.std(y_list, axis=0))
 
     problem_results = {
-        'm_list': np.arange(budget),
         'y_list (mean)': np.mean(problem_results['y_list (mean)'], axis=0),
         'y_list (std)': np.mean(problem_results['y_list (std)'], axis=0),
     }
@@ -143,13 +133,11 @@ def scale_meta_dict(meta_dict):
         y_range = y_max - y_min
 
         for solver in meta_dict[problem].keys():
-            m_list = meta_dict[problem][solver]['m_list']
             y_mean = meta_dict[problem][solver]['y_list (mean)']
             # y_std = meta_dict[problem][solver]['y_list (std)']
             y_mean_scaled = (y_mean - y_min) / y_range
             # y_std_scaled = y_std / y_range
             d[problem][solver] = {
-                'm_list': m_list,
                 'y_list (mean)': y_mean_scaled,
                 # 'y_list (std)': y_std_scaled
             }
@@ -216,11 +204,10 @@ def show_meta_results(meta_results):
 
         for solver in meta_results[problem].keys():
             results = meta_results[problem][solver]
-            m_list = results['m_list']
             y = results['y_list (mean)']
-            # y = pd.Series(y).ewm(alpha=0.1).mean()
+            y = pd.Series(y).ewm(alpha=0.1).mean()
             # y = np.clip(y, None, clip_val)
-            axes[i, j].plot(m_list, y, label=solver)
+            axes[i, j].plot(y, label=solver)
             
             # axes[i, j].set_ylim(-31500, -30500)
             # axes[i, j].fill_between(
@@ -311,7 +298,7 @@ def run_model(model, read_dir, problem, name, suffix='test', budget=100):
     )
     tester = L.Trainer(logger=False, precision=model.config['precision'])
     logs = {}
-    for warmup, do_sample in ((50, True),):#(0, False), (0, True), (50, False), (50, True)):
+    for warmup, do_sample in ((1, True),): #((0, False), (0, True), (50, False), (50, True)):
         model.config['do_sample'] = do_sample
         model.config['warmup_steps'] = warmup
         model.config['online_steps'] = int(budget - warmup)
